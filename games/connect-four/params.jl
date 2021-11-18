@@ -5,7 +5,7 @@
 Network = NetLib.ResNet
 
 netparams = NetLib.ResNetHP(
-  num_filters=64,
+  num_filters=128,
   num_blocks=5,
   conv_kernel_size=(3, 3),
   num_policy_head_filters=32,
@@ -14,7 +14,7 @@ netparams = NetLib.ResNetHP(
 
 self_play = SelfPlayParams(
   sim=SimParams(
-    num_games=500,
+    num_games=5000,
     num_workers=128,
     batch_size=64,
     use_gpu=true,
