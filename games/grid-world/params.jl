@@ -2,20 +2,20 @@ Network = NetLib.SimpleNet
 
 netparams = NetLib.SimpleNetHP(
   width=100,
-  depth_common=5,
-  use_batch_norm=true)
+  depth_common=4,
+  use_batch_norm=false)
 
 self_play = SelfPlayParams(
   sim=SimParams(
     num_games=1000,
     num_workers=4,
     batch_size=4,
-    use_gpu=true,
+    use_gpu=false,
     reset_every=16,
     flip_probability=0.,
     alternate_colors=false),
   mcts=MctsParams(
-    num_iters_per_turn=500,
+    num_iters_per_turn=50,
     cpuct=1.0,
     temperature=ConstSchedule(0.),
     dirichlet_noise_ϵ=0.,
@@ -26,7 +26,7 @@ arena = ArenaParams(
     num_games=100,
     num_workers=10,
     batch_size=10,
-    use_gpu=true,
+    use_gpu=false,
     reset_every=1,
     flip_probability=0.,
     alternate_colors=true),
@@ -34,7 +34,7 @@ arena = ArenaParams(
   update_threshold=0.00)
 
 learning = LearningParams(
-  use_gpu=true,
+  use_gpu=false,
   use_position_averaging=false,
   samples_weighing_policy=CONSTANT_WEIGHT,
   rewards_renormalization=10,
@@ -48,10 +48,10 @@ learning = LearningParams(
   num_checkpoints=1)
 
 params = Params(
-  arena=nothing,
+  arena=arena,
   self_play=self_play,
   learning=learning,
-  num_iters=25,
+  num_iters=5,
   memory_analysis=nothing,
   ternary_rewards=false,
   use_symmetries=false,
@@ -59,7 +59,7 @@ params = Params(
 
 benchmark_sim = SimParams(
   arena.sim;
-  num_games=100,
+  num_games=500,
   num_workers=10,
   batch_size=10)
 
