@@ -5,11 +5,11 @@
 Network = NetLib.ResNet
 
 netparams = NetLib.ResNetHP(
-  num_filters=64,
+  num_filters=32,
   num_blocks=5,
   conv_kernel_size=(3, 3),
-  num_policy_head_filters=32,
-  num_value_head_filters=32,
+  num_policy_head_filters=16,
+  num_value_head_filters=16,
   batch_norm_momentum=0.1)
 
 self_play = SelfPlayParams(
