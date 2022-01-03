@@ -7,11 +7,11 @@ netparams = NetLib.SimpleNetHP(
 
 self_play = SelfPlayParams(
   sim=SimParams(
-    num_games=1000,
-    num_workers=4,
-    batch_size=4,
+    num_games=500,
+    num_workers=1,
+    batch_size=1,
     use_gpu=false,
-    reset_every=16,
+    reset_every=1,
     flip_probability=0.,
     alternate_colors=false),
   mcts=MctsParams(
@@ -19,7 +19,8 @@ self_play = SelfPlayParams(
     cpuct=1.0,
     temperature=ConstSchedule(0.),
     dirichlet_noise_ϵ=0.,
-    dirichlet_noise_α=1.))
+    dirichlet_noise_α=1.,
+    adaptive_normalization=true))
 
 arena = ArenaParams(
   sim=SimParams(
