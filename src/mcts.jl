@@ -72,9 +72,9 @@ function (r::RandomOracle)(state)
 end
 
 mutable struct NormStats
-  β :: Float64
-  μ :: Float64
-  ν :: Float64
+  use_normalization :: Bool
+  best :: Float64
+  worst :: Float64
 end
 
 
@@ -148,10 +148,10 @@ mutable struct Env{State, Oracle}
   gspec :: GI.AbstractGameSpec
 
   function Env(gspec, oracle;
-      gamma=1., cpuct=1., noise_ϵ=0., noise_α=1., prior_temperature=1., β = 0.0)
+      gamma=1., cpuct=1., noise_ϵ=0., noise_α=1., prior_temperature=1., use_normalization=false)
     S = GI.state_type(gspec)
     tree = Dict{S, StateInfo}()
-    norm = NormStats(β, 0.0, 0.0)
+    norm = NormStats(use_normalization, 1e-4, -1e-4)
     total_simulations = 0
     total_nodes_traversed = 0
     new{S, typeof(oracle)}(
@@ -192,10 +192,10 @@ function uct_scores!(info::StateInfo, cpuct, ϵ, η, norm)
   sqrtNtot = sqrt(Ntot(info))
   return map(enumerate(info.stats)) do (i, a)
     Q = a.W / max(a.N, 1) 
-    if(!iszero(norm.β))
-      norm.μ = (1 - norm.β) * norm.μ + norm.β * Q 
-      norm.ν = (1 - norm.β) * norm.ν + norm.β * Q^2 
-      Q = (Q - norm.μ)/ sqrt(norm.ν - norm.μ^2)
+    if(norm.use_normalization)
+      norm.best = max(norm.best, Q)
+      norm.worst = min(norm.worst, Q)
+      Q /= max(norm.best, -norm.worst)
     end  
     P = iszero(ϵ) ? a.P : (1-ϵ) * a.P + ϵ * η[i]
     Q + cpuct * P * sqrtNtot / (a.N + 1)
@@ -291,7 +291,7 @@ end
 Empty the MCTS tree.
 """
 function reset!(env)
-  env.norm = NormStats(env.norm.β, 0.0, 0.0)
+  env.norm = NormStats(env.norm.use_normalization, 1e-4, -1e-4)
   empty!(env.tree)
   #GC.gc(true)
 end

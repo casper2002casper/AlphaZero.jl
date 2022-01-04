@@ -54,7 +54,7 @@ In the original AlphaGo Zero paper:
   dirichlet_noise_ϵ :: Float64
   dirichlet_noise_α :: Float64
   prior_temperature :: Float64 = 1.
-  normalization_β :: Float64 = 0.0 
+  use_normalization :: Bool = false 
 end
 
 """
