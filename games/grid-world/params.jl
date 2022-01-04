@@ -16,11 +16,11 @@ self_play = SelfPlayParams(
     alternate_colors=false),
   mcts=MctsParams(
     num_iters_per_turn=50,
-    cpuct=1.0,
+    cpuct=1.4,
     temperature=ConstSchedule(0.),
     dirichlet_noise_ϵ=0.,
     dirichlet_noise_α=1.,
-    adaptive_normalization=true))
+    normalization_β=0.001))
 
 arena = ArenaParams(
   sim=SimParams(
@@ -61,8 +61,8 @@ params = Params(
 benchmark_sim = SimParams(
   arena.sim;
   num_games=500,
-  num_workers=10,
-  batch_size=10)
+  num_workers=1,
+  batch_size=1)
 
 benchmark = [
   Benchmark.Single(

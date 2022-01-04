@@ -71,6 +71,13 @@ function (r::RandomOracle)(state)
   return P, V
 end
 
+mutable struct NormStats
+  β :: Float64
+  μ :: Float64
+  ν :: Float64
+end
+
+
 #####
 ##### State Statistics
 #####
@@ -133,9 +140,7 @@ mutable struct Env{State, Oracle}
   noise_α :: Float64
   prior_temperature :: Float64
   # Adapative normalization
-  use_adap_opt :: Bool
-  worst_score :: Float64
-  best_score :: Float64
+  norm :: NormStats
   # Performance statistics
   total_simulations :: Int64
   total_nodes_traversed :: Int64
@@ -143,15 +148,14 @@ mutable struct Env{State, Oracle}
   gspec :: GI.AbstractGameSpec
 
   function Env(gspec, oracle;
-      gamma=1., cpuct=1., noise_ϵ=0., noise_α=1., prior_temperature=1., use_adap_opt = false)
+      gamma=1., cpuct=1., noise_ϵ=0., noise_α=1., prior_temperature=1., β = 0.0)
     S = GI.state_type(gspec)
     tree = Dict{S, StateInfo}()
-    worst_score=typemax(Float64)
-    best_score=typemin(Float64)
+    norm = NormStats(β, 0.0, 0.0)
     total_simulations = 0
     total_nodes_traversed = 0
     new{S, typeof(oracle)}(
-      tree, oracle, gamma, cpuct, noise_ϵ, noise_α, prior_temperature, use_adap_opt, worst_score, best_score,
+      tree, oracle, gamma, cpuct, noise_ϵ, noise_α, prior_temperature, norm,
       total_simulations, total_nodes_traversed, gspec)
   end
 end
@@ -183,12 +187,16 @@ end
 ##### Main algorithm
 #####
 
-function uct_scores(info::StateInfo, cpuct, ϵ, η, normalize, worst, best)
+function uct_scores!(info::StateInfo, cpuct, ϵ, η, norm)
   @assert iszero(ϵ) || length(η) == length(info.stats)
   sqrtNtot = sqrt(Ntot(info))
   return map(enumerate(info.stats)) do (i, a)
-    Q = normalize ? (a.W / max(a.N, 1) - worst + 1e-8)/ (best - worst + 1e-8) : a.W / max(a.N, 1)
-    #println(worst," ", best)
+    Q = a.W / max(a.N, 1) 
+    if(!iszero(norm.β))
+      norm.μ = (1 - norm.β) * norm.μ + norm.β * Q 
+      norm.ν = (1 - norm.β) * norm.ν + norm.β * Q^2 
+      Q = (Q - norm.μ)/ sqrt(norm.ν - norm.μ^2)
+    end  
     P = iszero(ϵ) ? a.P : (1-ϵ) * a.P + ϵ * η[i]
     Q + cpuct * P * sqrtNtot / (a.N + 1)
   end
@@ -214,17 +222,13 @@ function run_simulation!(env::Env, game; η, root=true)
       return info.Vest
     else
       ϵ = root ? env.noise_ϵ : 0.
-      scores = uct_scores(info, env.cpuct, ϵ, η, env.use_adap_opt, env.worst_score, env.best_score)
+      scores = uct_scores!(info, env.cpuct, ϵ, η, env.norm)
       action_id = argmax(scores)
       action = actions[action_id]
       wp = GI.white_playing(game)
       GI.play!(game, action)
       wr = GI.white_reward(game)
       r = wp ? wr : -wr
-      if(env.use_adap_opt)
-        env.worst_score = min(env.worst_score, r)
-        env.best_score = max(env.best_score, r)
-      end
       pswitch = wp != GI.white_playing(game)
       qnext = run_simulation!(env, game, η=η, root=false)
       qnext = pswitch ? -qnext : qnext
@@ -287,8 +291,7 @@ end
 Empty the MCTS tree.
 """
 function reset!(env)
-  env.worst_score=typemax(env.worst_score)
-  env.best_score=typemin(env.best_score)
+  env.norm = NormStats(env.norm.β, 0.0, 0.0)
   empty!(env.tree)
   #GC.gc(true)
 end

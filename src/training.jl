@@ -285,6 +285,7 @@ function self_play_step!(env::Env, handler)
     simulator, env.gspec, params.sim,
     game_simulated=()->Handlers.game_played(handler))
   # Add the collected samples in memory
+  println(results)
   new_batch!(env.memory)
   for x in results
     push_trace!(env.memory, x.trace, params.mcts.gamma)

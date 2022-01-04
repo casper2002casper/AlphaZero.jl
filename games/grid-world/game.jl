@@ -47,7 +47,7 @@ function RL.act!(env::World, a)
   end
   env.state = clamp.(env.state + a, SA[1,1], env.size)
   env.time += 1
-  return get(env.rewards, env.state, 0.0)
+  return get(env.rewards, env.state, -0.2)
 end
 
 @provide RL.player(env::World) = 1 # An MDP is a one player game

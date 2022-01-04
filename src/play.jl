@@ -174,7 +174,7 @@ function MctsPlayer(
     noise_ϵ=params.dirichlet_noise_ϵ,
     noise_α=params.dirichlet_noise_α,
     prior_temperature=params.prior_temperature,
-    use_adap_opt=params.adaptive_normalization)
+    β =params.normalization_β)
   return MctsPlayer(mcts,
     niters=params.num_iters_per_turn,
     τ=params.temperature,
@@ -189,7 +189,7 @@ function RandomMctsPlayer(game_spec::AbstractGameSpec, params::MctsParams)
     gamma=params.gamma,
     noise_ϵ=params.dirichlet_noise_ϵ,
     noise_α=params.dirichlet_noise_α,
-    use_adap_opt=params.adaptive_normalization)
+    β = params.normalization_β)
   return MctsPlayer(mcts,
     niters=params.num_iters_per_turn,
     τ=params.temperature)
@@ -302,6 +302,10 @@ function play_game(gspec, player; flip_probability=0.)
   trace = Trace(GI.current_state(game))
   while true
     if GI.game_terminated(game)
+      # if(isa(player, MctsPlayer))
+      #   trace.rewards .= (trace.rewards .- player.mcts.norm.μ)./ sqrt(player.mcts.norm.ν - player.mcts.norm.μ^2)
+      #   println(trace.rewards)
+      # end 
       return trace
     end
     if !iszero(flip_probability) && rand() < flip_probability
