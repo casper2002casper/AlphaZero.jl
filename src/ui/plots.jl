@@ -131,7 +131,7 @@ function plot_benchmark(
     legend=:bottomright,
     label=labels,
     xlabel="Iteration number")
-  Plots.savefig(avgr, joinpath(dir, "benchmark_reward"))
+  #Plots.savefig(avgr, joinpath(dir, "benchmark_reward"))
   if params.ternary_rewards
     function compute_percentage(b, f)
       stats = Benchmark.TernaryOutcomeStatistics(b)
