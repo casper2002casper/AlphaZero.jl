@@ -39,7 +39,7 @@ function convert_samples(
     gspec::AbstractGameSpec,
     wp::SamplesWeighingPolicy,
     es::AbstractVector{<:TrainingSample})
-
+    
   ces = [convert_sample(gspec, wp, e) for e in es]
   W = Flux.batch((e.w for e in ces))
   X = collect(e.x for e in ces)
@@ -47,7 +47,6 @@ function convert_samples(
   A = Flux.batch((e.a for e in ces))
   P = Flux.batch((e.p for e in ces))
   V = Flux.batch((e.v for e in ces))
-  f32(arr) = convert(AbstractArray{Float32}, arr)
   function f32(arr)
     if typeof(arr) <: Matrix
       return convert(AbstractArray{Float32}, arr)
