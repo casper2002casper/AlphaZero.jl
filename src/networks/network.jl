@@ -11,7 +11,7 @@ using Base: @kwdef
 using Statistics: mean
 
 import Flux  # we use Flux.batch
-
+import GraphNeuralNetworks
 """
     AbstractNetwork
 

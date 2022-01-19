@@ -4,7 +4,7 @@ along with a library of standard architectures.
 """
 module FluxLib
 
-export SimpleNet, SimpleNetHP, ResNet, ResNetHP
+export SimpleNet, SimpleNetHP, ResNet, ResNetHP, Gnn, GnnHP
 
 using ..AlphaZero
 
@@ -139,9 +139,11 @@ is provided for [`Network.hyperparams`](@ref), [`Network.game_spec`](@ref),
 abstract type TwoHeadNetwork <: FluxNetwork end
 
 function Network.forward(nn::TwoHeadNetwork, state)
+  #state = Vector{typeof(state[1])}(state)
+  #state = Flux.batch(state)
   c = nn.common(state)
-  v = nn.vhead(c)
-  p = nn.phead(c)
+  v = nn.vhead(c, c.ndata.x)
+  p = nn.phead(c, c.ndata.x)
   return (p, v)
 end
 
@@ -156,7 +158,7 @@ Network.hyperparams(nn::TwoHeadNetwork) = nn.hyper
 
 Network.game_spec(nn::TwoHeadNetwork) = nn.gspec
 
-Network.on_gpu(nn::TwoHeadNetwork) = array_on_gpu(nn.vhead[end].bias)
+Network.on_gpu(nn::TwoHeadNetwork) = array_on_gpu(nn.common[end].bias)
 
 #####
 ##### Include networks library
@@ -164,5 +166,5 @@ Network.on_gpu(nn::TwoHeadNetwork) = array_on_gpu(nn.vhead[end].bias)
 
 include("architectures/simplenet.jl")
 include("architectures/resnet.jl")
-
+include("architectures/gnn.jl")
 end
