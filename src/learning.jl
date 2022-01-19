@@ -42,11 +42,19 @@ function convert_samples(
 
   ces = [convert_sample(gspec, wp, e) for e in es]
   W = Flux.batch((e.w for e in ces))
-  X = Flux.batch((e.x for e in ces))
+  X = collect(e.x for e in ces)
+  X = Flux.batch(Vector{typeof(X[1])}(X))
   A = Flux.batch((e.a for e in ces))
   P = Flux.batch((e.p for e in ces))
   V = Flux.batch((e.v for e in ces))
   f32(arr) = convert(AbstractArray{Float32}, arr)
+  function f32(arr)
+    if typeof(arr) <: Matrix
+      return convert(AbstractArray{Float32}, arr)
+    else
+      return arr
+    end
+  end
   return map(f32, (; W, X, A, P, V))
 end
 
