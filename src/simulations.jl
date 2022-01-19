@@ -229,10 +229,10 @@ function simulate(
         player_pf = player
       end
       # Play the game and generate a report
-      trace = play_game(gspec, player_pf, flip_probability=p.flip_probability)
+      trace = play_game(gspec, player_pf, flip_probability=p.flip_probability) #Init every i
       report = simulator.measure(trace, colors_flipped, player)
       # Reset the player periodically
-      if !isnothing(p.reset_every) && worker_sim_id % p.reset_every == 0
+      if !isnothing(p.reset_every) && worker_sim_id % p.reset_every == 0 #Reset every n
         reset_player!(player)
       end
       # Signal that a game has been simulated
