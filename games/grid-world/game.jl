@@ -5,8 +5,33 @@
 using CommonRLInterface
 using StaticArrays
 using Crayons
+using GraphNeuralNetworks
 
 const RL = CommonRLInterface
+const SIZE = SA[10,10]
+const NUM_N = SIZE[1]*SIZE[2]
+p2i(i,j) = ((j-1)*SIZE[1]+i)
+
+const REWARDS = Dict(
+  p2i(9,3) =>  1.0,
+  p2i(8,8) =>  0.3,
+  p2i(4,3) => -1.0,
+  p2i(4,6) => -0.5)
+
+function generate_connections()
+  connections = Vector{Vector}() #adjacency list of grid
+  for j in 1:SIZE[2] 
+    for i in 1:SIZE[1]
+      point = Vector{Int}()
+      for a in [[1,0], [-1,0], [0,1], [0,-1]]
+        all([1,1].<=[i,j] + a.<=SIZE) && append!(point,p2i(i+a[1],j+a[2]))
+      end
+      append!(connections, [point])
+    end
+  end
+  return connections
+end  
+const CONNECTIONS = generate_connections()
 
 # To avoid episodes of unbounded length, we put an arbitrary limit to the length of an
 # episode. Because time is not captured in the state, this introduces a slight bias in
@@ -14,49 +39,44 @@ const RL = CommonRLInterface
 const EPISODE_LENGTH_BOUND = 200
 
 mutable struct World <: AbstractEnv
-  size::SVector{2, Int}
-  rewards::Dict{SVector{2, Int}, Float64}
-  state::SVector{2, Int}
-  time :: Int
+  position::UInt8
+  time :: UInt8
 end
 
 function World()
-  rewards = Dict(
-    SA[9,3] =>  10.0,
-    SA[8,8] =>   3.0,
-    SA[4,3] => -10.0,
-    SA[4,6] =>  -5.0)
   return World(
-    SA[10, 10],
-    rewards,
-    SA[rand(1:10), rand(1:10)],
+    rand(1:NUM_N),
     0)
 end
 
-RL.reset!(env::World) = (env.state = SA[rand(1:env.size[1]), rand(1:env.size[2])])
-RL.actions(env::World) = [SA[1,0], SA[-1,0], SA[0,1], SA[0,-1]]
-RL.observe(env::World) = env.state
+function RL.reset!(env::World)
+  env.position = rand(1:NUM_N)
+  env.time = 0
+end
 
-RL.terminated(env::World) =
-  haskey(env.rewards, env.state) || env.time > EPISODE_LENGTH_BOUND
+RL.actions(env::World) = collect(1:NUM_N)
+RL.observe(env::World) = env.position
+@provide RL.state(env::World) = env.position
+
+RL.terminated(env::World) = haskey(REWARDS, env.position) || env.time > EPISODE_LENGTH_BOUND
 
 function RL.act!(env::World, a)
-  # 40% chance of going in a random direction (=30% chance of going in a wrong direction)
-  if rand() < 0.4
-      a = rand(actions(env))
-  end
-  env.state = clamp.(env.state + a, SA[1,1], env.size)
+  env.position = a
   env.time += 1
-  return get(env.rewards, env.state, 0.0)
+  return get(REWARDS, env.position, 0.0)
 end
 
 @provide RL.player(env::World) = 1 # An MDP is a one player game
 @provide RL.players(env::World) = [1]
-@provide RL.observations(env::World) = [SA[x, y] for x in 1:env.size[1], y in 1:env.size[2]]
-@provide RL.clone(env::World) = World(env.size, copy(env.rewards), env.state, env.time)
-@provide RL.state(env::World) = env.state
-@provide RL.setstate!(env::World, s) = (env.state = s)
-@provide RL.valid_action_mask(env::World) = BitVector([1, 1, 1, 1])
+#@provide RL.observations(env::World) = [SA[x, y] for x in 1:SIZE[1], y in 1:SIZE[2]]
+@provide RL.clone(env::World) = World(env.position, env.time)
+@provide RL.setstate!(env::World, state) = (env.position = state)
+@provide function RL.valid_action_mask(env::World)
+  valid_actions = zeros(Bool, NUM_N)
+  valid_nodes = CONNECTIONS[env.position]
+  valid_actions[valid_nodes] .= 1
+  return valid_actions
+end
 
 # Additional functions needed by AlphaZero.jl that are not present in 
 # CommonRlInterface.jl. Here, we provide them by overriding some functions from
@@ -64,11 +84,11 @@ end
 # CommonRLInterfaceWrapper.
 
 function GI.render(env::World)
-  for y in reverse(1:env.size[2])
-    for x in 1:env.size[1]
+  for y in reverse(1:SIZE[2])
+    for x in 1:SIZE[1]
       s = SA[x, y]
-      r = get(env.rewards, s, 0.0)
-      if env.state == s
+      r = get(REWARDS, s, 0.0)
+      if env.position == p2i(x,y)
         c = ("+",)
       elseif r > 0
         c = (crayon"green", "o")
@@ -84,22 +104,21 @@ function GI.render(env::World)
 end
 
 function GI.vectorize_state(env::World, state)
-  v = zeros(Float32, env.size[1], env.size[2])
-  v[state[1], state[2]] = 1
-  return v
+  data = zeros(Float32, 1 , NUM_N)
+  data[state] = 1.0
+  return GNNGraph(CONNECTIONS, num_nodes = NUM_N, ndata = data)
 end
 
 const action_names = ["r", "l", "u", "d"]
 
 function GI.action_string(env::World, a)
-  idx = findfirst(==(a), RL.actions(env))
-  return isnothing(idx) ? "?" : action_names[idx]
+  return string(a)
 end
 
-function GI.parse_action(env::World, s)
-  idx = findfirst(==(s), action_names)
-  return isnothing(idx) ? nothing : RL.actions(env)[idx]
-end
+# function GI.parse_action(env::World, s)
+#   idx = findfirst(==(s), action_names)
+#   return isnothing(idx) ? nothing : RL.actions(env)[idx]
+# end
 
 function GI.read_state(env::World)
   try
@@ -107,8 +126,8 @@ function GI.read_state(env::World)
     @assert length(s) == 2
     x = parse(Int, s[1])
     y = parse(Int, s[2])
-    @assert 1 <= x <= env.size[1]
-    @assert 1 <= y <= env.size[2]
+    @assert 1 <= x <= SIZE[1]
+    @assert 1 <= y <= SIZE[2]
     return SA[x, y]
   catch e
     return nothing
