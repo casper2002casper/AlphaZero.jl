@@ -10,8 +10,10 @@ using ..AlphaZero
 
 using CUDA
 using Base: @kwdef
+#using Statistics: var
 
 import Flux
+import GraphNeuralNetworks
 
 CUDA.allowscalar(false)
 array_on_gpu(::Array) = false
@@ -20,6 +22,7 @@ array_on_gpu(arr) = error("Usupported array type: ", typeof(arr))
 
 using Flux: relu, softmax, flatten
 using Flux: Chain, Dense, Conv, BatchNorm, SkipConnection
+using GraphNeuralNetworks: GCNConv
 import Zygote
 
 #####
@@ -109,6 +112,7 @@ function Network.train!(
 end
 
 regularized_params_(l) = []
+regularized_params_(l::GraphNeuralNetworks.GCNConv) = [l.weight]
 regularized_params_(l::Flux.Dense) = [l.weight]
 regularized_params_(l::Flux.Conv) = [l.weight]
 
