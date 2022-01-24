@@ -262,7 +262,7 @@ All tensors manipulated by this function have elements of type `Float32`.
 """
 function forward_normalized(nn::AbstractNetwork, state, actions_mask)
   p, v = forward(nn, state)
-  p = reshape(p, size(actions_mask)...) .* actions_mask
+  p = p .* actions_mask
   sp = sum(p, dims=1)
   p = p ./ (sp .+ eps(eltype(p)))
   p_invalid = 1 .- sp
