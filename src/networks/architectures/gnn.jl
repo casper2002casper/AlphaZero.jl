@@ -15,9 +15,10 @@ Hyperparameters for the gnn architecture.
 | `batch_norm_momentum = 0.6f0` | Momentum of batch norm statistics updates    |
 """
 @kwdef struct GnnHP
-  depth_common :: Int = 3
+  depth_common :: Int = 5
   depth_phead :: Int = 1
   depth_vhead :: Int = 1
+  hidden_size :: Int = 2
   use_batch_norm :: Bool = false
   batch_norm_momentum :: Float32 = 0.6f0
 end
@@ -36,16 +37,17 @@ mutable struct Gnn <: TwoHeadNetwork
 end
 
 function Gnn(gspec::AbstractGameSpec, hyper::GnnHP)
-  nin = 1
-  nhidden = 10
-  ncommon = 5
-  hlayers(depth) = [GCNConv(nhidden => nhidden, relu) for i in 1:depth]
-  common = GNNChain(GCNConv(nin => nhidden, relu),
-                    hlayers(10)...,
-                    GCNConv(nhidden => ncommon, relu))
-  vhead = GNNChain(GlobalPool(mean),  
-            Dense(ncommon, 1), softmax)
-  phead = GNNChain(Dense(ncommon, 1), softmax)
+  indim = 2
+  GCN_layers(depth) = [GCNConv(hyper.hidden_size => hyper.hidden_size, relu, add_self_loops=true) for i in 1:depth]
+  Dense_layers(depth) = [Dense(hyper.hidden_size, hyper.hidden_size, relu) for i in 1:depth]
+  common = GNNChain(GCNConv(indim => hyper.hidden_size, relu, add_self_loops=true),
+                    GCN_layers(hyper.depth_common)...,
+                    BatchNorm(hyper.hidden_size, relu, momentum=hyper.batch_norm_momentum))
+  vhead = GNNChain(Dense_layers(hyper.depth_vhead)...,
+                    GlobalPool(mean),  
+                    Dense(hyper.hidden_size, 1, tanh))
+  phead = GNNChain(Dense_layers(hyper.depth_phead)...,
+                  Dense(hyper.hidden_size, 1))
   return Gnn(gspec, hyper, common, vhead, phead)
 end
 
