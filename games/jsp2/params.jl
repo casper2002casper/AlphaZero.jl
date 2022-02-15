@@ -4,7 +4,7 @@ netparams = NetLib.GnnHP()
 
 self_play = SelfPlayParams(
   sim=SimParams(
-    num_games=500,
+    num_games=300,
     num_workers=16,
     batch_size=8,
     use_gpu=false,
@@ -12,7 +12,7 @@ self_play = SelfPlayParams(
     flip_probability=0.,
     alternate_colors=false),
   mcts=MctsParams(
-    num_iters_per_turn=100,
+    num_iters_per_turn=150,
     cpuct=1.4,
     adaptive_cpuct = true,
     temperature=ConstSchedule(0.),
@@ -32,7 +32,7 @@ learning = LearningParams(
   min_checkpoints_per_epoch=1,
   max_batches_per_checkpoint=5_000,
   num_checkpoints=1,
-  rewards_renormalization = 48)
+  rewards_renormalization = 50)
 
 
 params = Params(
@@ -52,9 +52,9 @@ benchmark_sim = SimParams(
   batch_size=8)
 
   benchmark = [
-    # Benchmark.Single(
-    #   Benchmark.Full(self_play.mcts),
-    #   benchmark_sim)]#,
+    Benchmark.Single(
+      Benchmark.Full(self_play.mcts),
+      benchmark_sim),
     Benchmark.Single(
       Benchmark.NetworkOnly(),
       benchmark_sim)]

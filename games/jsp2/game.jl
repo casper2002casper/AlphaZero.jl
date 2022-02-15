@@ -21,8 +21,8 @@ mutable struct GameEnv <: GI.AbstractGameEnv
   conj_src::SVector{M*N+N, UInt8}
   conj_tar::SVector{M*N+N, UInt8}
   #State
-  disj_src::Vector{UInt8}
-  disj_tar::Vector{UInt8}
+  disj_src::MVector{M*N, UInt8}
+  disj_tar::MVector{M*N, UInt8}
   is_done::MVector{S, Bool}
   done_time::MVector{S, UInt16}
   #info
@@ -53,8 +53,8 @@ GI.init(::GameSpec) = GameEnv(
   [rand(P_MIN:P_MAX,M*N);0;0],#Nodes time plus t, s = 0
   [collect(1:N*M)..., S * ones(N)...],#From
   generate_conjuctive_edges(),#To
-  [],
-  [],
+  collect(1:M*N),
+  collect(1:M*N),
   [falses(N*M)..., true, true], #[nodes, T, S]
   zeros(UInt16, S),
   collect(-1:N-2) .+ S, #Start node
@@ -125,8 +125,7 @@ function GI.play!(g::GameEnv, o)
   k = g.prev_machine[mn[1]] #previous operation done on machine of todo operation
   l = min(g.prev_operation[mn[2]], S) #previous operation done in job of todo operation
   #add disjunctive link
-  append!(g.disj_src, k)
-  append!(g.disj_tar, o)
+  k != S && (g.disj_tar[k] = o)
   #update done time
   done_time = max(g.done_time[l], g.done_time[k]) + g.process_time[o]
   #update info vectors
