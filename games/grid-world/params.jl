@@ -1,12 +1,10 @@
 Network = NetLib.Gnn
 
-netparams = NetLib.GnnHP(
-  depth_common=4,
-  depth_vhead=1)
+netparams = NetLib.GnnHP()
 
 self_play = SelfPlayParams(
   sim=SimParams(
-    num_games=200,
+    num_games=2000,
     num_workers=8,
     batch_size=4,
     use_gpu=false,
@@ -23,7 +21,7 @@ self_play = SelfPlayParams(
 
 arena = ArenaParams(
   sim=SimParams(
-    num_games=10,
+    num_games=100,
     num_workers=10,
     batch_size=10,
     use_gpu=false,
@@ -38,19 +36,19 @@ learning = LearningParams(
   use_position_averaging=true,
   samples_weighing_policy=CONSTANT_WEIGHT,
   l2_regularization=1e-4,
-  optimiser=Adam(lr=5e-3),
-  batch_size=64,
+  optimiser=Adam(lr=5e-2),
+  batch_size=128,
   loss_computation_batch_size=2048,
-  nonvalidity_penalty=0.,
+  nonvalidity_penalty=1.,
   min_checkpoints_per_epoch=1,
   max_batches_per_checkpoint=5_000,
-  num_checkpoints=3)
+  num_checkpoints=1)
 
 params = Params(
   arena=nothing,
   self_play=self_play,
   learning=learning,
-  num_iters=1,
+  num_iters=50,
   memory_analysis=nothing,
   ternary_rewards=false,
   use_symmetries=false,
@@ -58,7 +56,7 @@ params = Params(
 
 benchmark_sim = SimParams(
   arena.sim;
-  num_games=5,
+  num_games=200,
   num_workers=8,
   batch_size=4)
 

@@ -8,15 +8,18 @@ using Crayons
 using GraphNeuralNetworks
 
 const RL = CommonRLInterface
-const SIZE = SA[10,10]
+const SIZE = SA[5,5]
 const NUM_N = SIZE[1]*SIZE[2]
 p2i(i,j) = ((j-1)*SIZE[1]+i)
 
-const REWARDS = Dict(
-  p2i(9,3) =>  1.0,
-  p2i(8,8) =>  0.3,
-  p2i(4,3) => -1.0,
-  p2i(4,6) => -0.5)
+function generate_rewards()
+  rewards = zeros(Float32, 1, NUM_N)
+  rewards[p2i(2,3)] =  1.0
+  rewards[p2i(3,3)] =  0.3
+  rewards[p2i(2,1)] = -1.0
+  rewards[p2i(2,2)] = -0.5
+  return rewards
+end
 
 function generate_connections()
   connections = Vector{Vector}() #adjacency list of grid
@@ -31,6 +34,8 @@ function generate_connections()
   end
   return connections
 end  
+
+const REWARDS = generate_rewards()
 const CONNECTIONS = generate_connections()
 
 # To avoid episodes of unbounded length, we put an arbitrary limit to the length of an
@@ -58,12 +63,12 @@ RL.actions(env::World) = collect(1:NUM_N)
 RL.observe(env::World) = env.position
 @provide RL.state(env::World) = env.position
 
-RL.terminated(env::World) = haskey(REWARDS, env.position) || env.time > EPISODE_LENGTH_BOUND
+RL.terminated(env::World) = !iszero(REWARDS[env.position]) || env.time > EPISODE_LENGTH_BOUND
 
 function RL.act!(env::World, a)
   env.position = a
   env.time += 1
-  return get(REWARDS, env.position, 0.0)
+  return REWARDS[env.position]
 end
 
 @provide RL.player(env::World) = 1 # An MDP is a one player game
@@ -86,8 +91,8 @@ end
 function GI.render(env::World)
   for y in reverse(1:SIZE[2])
     for x in 1:SIZE[1]
-      s = SA[x, y]
-      r = get(REWARDS, s, 0.0)
+      s = p2i(x,y)
+      r = REWARDS[s]
       if env.position == p2i(x,y)
         c = ("+",)
       elseif r > 0
@@ -104,9 +109,9 @@ function GI.render(env::World)
 end
 
 function GI.vectorize_state(env::World, state)
-  data = zeros(Float32, 1 , NUM_N)
-  data[state] = 1.0
-  return GNNGraph(CONNECTIONS, num_nodes = NUM_N, ndata = data)
+  pos = zeros(Float32, 1 , NUM_N)
+  pos[state] = 1.0
+  return GNNGraph(CONNECTIONS, num_nodes = NUM_N, ndata = [pos;REWARDS])
 end
 
 const action_names = ["r", "l", "u", "d"]
@@ -128,7 +133,7 @@ function GI.read_state(env::World)
     y = parse(Int, s[2])
     @assert 1 <= x <= SIZE[1]
     @assert 1 <= y <= SIZE[2]
-    return SA[x, y]
+    return p2i(x,y)
   catch e
     return nothing
   end
