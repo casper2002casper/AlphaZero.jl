@@ -73,6 +73,9 @@ Network.params(nn::FluxNetwork) = Flux.params(nn)
 function lossgrads(f, args...)
   val, back = Zygote.pullback(f, args...)
   grad = back(Zygote.sensitivity(val))
+  # for (p, g) in pairs(grad)
+  #   print(g)
+  # end
   return val, grad
 end
 
@@ -149,6 +152,7 @@ function Network.forward(nn::TwoHeadNetwork, state)
   v = nn.vhead(c, c.ndata.x)
   p = nn.phead(c, c.ndata.x)
   p = softmax(reshape(p, :, state.num_graphs))
+  #println(var(p))
   return (p, v)
 end
 
@@ -163,7 +167,7 @@ Network.hyperparams(nn::TwoHeadNetwork) = nn.hyper
 
 Network.game_spec(nn::TwoHeadNetwork) = nn.gspec
 
-Network.on_gpu(nn::TwoHeadNetwork) = array_on_gpu(nn.common[end].bias)
+Network.on_gpu(nn::TwoHeadNetwork) = array_on_gpu(nn.common[1].bias)
 
 #####
 ##### Include networks library
