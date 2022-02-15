@@ -41,12 +41,11 @@ function convert_samples(
     es::AbstractVector{<:TrainingSample})
     
   ces = [convert_sample(gspec, wp, e) for e in es]
-  W = Flux.batch((e.w for e in ces))
-  X = collect(e.x for e in ces)
-  X = Flux.batch(Vector{typeof(X[1])}(X))
-  A = Flux.batch((e.a for e in ces))
-  P = Flux.batch((e.p for e in ces))
-  V = Flux.batch((e.v for e in ces))
+  W = Flux.batch([e.w for e in ces])
+  X = Flux.batch([e.x for e in ces])
+  A = Flux.batch([e.a for e in ces])
+  P = Flux.batch([e.p for e in ces])
+  V = Flux.batch([e.v for e in ces])
   function f32(arr)
     if typeof(arr) <: Matrix
       return convert(AbstractArray{Float32}, arr)
