@@ -14,7 +14,7 @@ module Examples
   include("../games/mancala/main.jl")
   export Mancala
 
-  include("../games/jsp/main.jl")
+  include("../games/jsp2/main.jl")
   export JSP
 
   const games = Dict(
