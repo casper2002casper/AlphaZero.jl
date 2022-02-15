@@ -15,10 +15,10 @@ Hyperparameters for the gnn architecture.
 | `batch_norm_momentum = 0.6f0` | Momentum of batch norm statistics updates    |
 """
 @kwdef struct GnnHP
-  depth_common :: Int = 5
-  depth_phead :: Int = 1
-  depth_vhead :: Int = 1
-  hidden_size :: Int = 2
+  depth_common :: Int = 6
+  depth_phead :: Int = 3
+  depth_vhead :: Int = 3
+  hidden_size :: Int = 50
   use_batch_norm :: Bool = false
   batch_norm_momentum :: Float32 = 0.6f0
 end
@@ -45,7 +45,7 @@ function Gnn(gspec::AbstractGameSpec, hyper::GnnHP)
                     BatchNorm(hyper.hidden_size, relu, momentum=hyper.batch_norm_momentum))
   vhead = GNNChain(Dense_layers(hyper.depth_vhead)...,
                     GlobalPool(mean),  
-                    Dense(hyper.hidden_size, 1, tanh))
+                    Dense(hyper.hidden_size, 1, relu))
   phead = GNNChain(Dense_layers(hyper.depth_phead)...,
                   Dense(hyper.hidden_size, 1))
   return Gnn(gspec, hyper, common, vhead, phead)
