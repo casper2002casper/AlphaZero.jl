@@ -12,7 +12,7 @@ self_play = SelfPlayParams(
     flip_probability=0.,
     alternate_colors=false),
   mcts=MctsParams(
-    num_iters_per_turn=150,
+    num_iters_per_turn=40,
     cpuct=1.4,
     adaptive_cpuct = true,
     temperature=ConstSchedule(0.),
@@ -22,17 +22,17 @@ self_play = SelfPlayParams(
 
 learning = LearningParams(
   use_gpu=false,
-  use_position_averaging=true,
+  use_position_averaging=false,
   samples_weighing_policy=CONSTANT_WEIGHT,
   l2_regularization=1e-4,
   optimiser=Adam(lr=5e-3),
   batch_size=64,
   loss_computation_batch_size=64,
-  nonvalidity_penalty=1.,
+  nonvalidity_penalty=0.1,
   min_checkpoints_per_epoch=1,
   max_batches_per_checkpoint=5_000,
   num_checkpoints=1,
-  rewards_renormalization = 50)
+  rewards_renormalization = 1)
 
 
 params = Params(
@@ -43,12 +43,12 @@ params = Params(
   memory_analysis=nothing,
   ternary_rewards=false,
   use_symmetries=false,
-  mem_buffer_size=PLSchedule(80_000))
+  mem_buffer_size=PLSchedule(5_000))
 
 benchmark_sim = SimParams(
   self_play.sim;
   num_games=100,
-  num_workers=8,
+  num_workers=16,
   batch_size=8)
 
   benchmark = [
