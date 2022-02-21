@@ -12,6 +12,7 @@ using ..AlphaZero
 using ProgressMeter
 using Statistics: mean
 using Base: @kwdef
+using Random
 
 """
     Benchmark.Player
@@ -77,6 +78,7 @@ function run end
 
 function run(env::Env, eval::Evaluation, progress=nothing)
   net() = Network.copy(env.bestnn, on_gpu=eval.sim.use_gpu, test_mode=true)
+  Random.seed!(1)
   if isa(eval, Single)
     simulator = Simulator(net, record_trace) do net
       instantiate(eval.player, env.gspec, net)
@@ -94,6 +96,7 @@ function run(env::Env, eval::Evaluation, progress=nothing)
     game_simulated=(() -> next!(progress)))
   gamma = env.params.self_play.mcts.gamma
   rewards, redundancy = rewards_and_redundancy(samples, gamma=gamma)
+  Random.seed!(convert(Int64, time()÷1))
   return Report.Evaluation(
     name(eval), mean(rewards), redundancy, rewards, nothing, elapsed)
 end
