@@ -81,7 +81,7 @@ function GI.init(::GameSpec)
     collect(1:N_NODES),
     collect(1:N_NODES),
     [falses(N*M)..., false, true], #[nodes, T, S]
-    generate_done_time(p_time, conj_tar, start_nodes),
+    zeros(UInt16, S),#generate_done_time(p_time, conj_tar, start_nodes),
     #Info
     start_nodes, 
     S * ones(UInt8, M)
@@ -164,16 +164,19 @@ function GI.play!(g::GameEnv, o)
   #update info vectors
   g.prev_machine[mn[1]] = o
   g.prev_operation[mn[2]] = o
-  #determine if all opperations are done
-  all(g.conj_tar[g.prev_operation].==T) && (g.is_done[T] = true)
   #update done time
-  last_done_time = g.done_time[o] = max(g.done_time[l], g.done_time[k] * g.is_done[k]) + g.process_time[o]
-  #println("o:", o, " k:", k, " l:", l, " do:", last_done_time*1, " dk:", g.done_time[k] * g.is_done[k]*1, " dl:", g.done_time[l]*1)
-  while(true)#propagate expected done time
-    o = g.conj_tar[o]
-    last_done_time = g.done_time[o] = max(g.done_time[o], last_done_time + g.process_time[o])
-    o == T && return
+  g.done_time[o] = max(g.done_time[l], g.done_time[k]) + g.process_time[o]
+  #determine if all opperations are done
+  if(g.conj_tar[o]==T)
+    g.done_time[T] = max(g.done_time[T], g.done_time[o])
+    g.is_done[T] = true
   end
+  #println("o:", o, " k:", k, " l:", l, " do:", last_done_time*1, " dk:", g.done_time[k] * g.is_done[k]*1, " dl:", g.done_time[l]*1)
+  # while(true)#propagate expected done time
+  #   o = g.conj_tar[o]
+  #   last_done_time = g.done_time[o] = max(g.done_time[o], last_done_time + g.process_time[o])
+  #   o == T && return
+  # end
 end
 
 function GI.white_reward(g::GameEnv)
@@ -185,10 +188,14 @@ function GI.white_reward(g::GameEnv)
 end
 
 function GI.vectorize_state(::GameSpec, state) 
+  weight = [state.process_time..., zeros(UInt8, N-1)..., ones(UInt8, N_NODES)...]
+  weight[T:end] .= 1
+  x = hcat(state.done_time, state.is_done)'
   return  GNNGraph([state.conj_src; state.disj_src], 
                    [state.conj_tar; state.disj_tar], 
+                   weight,
                    num_nodes = S, 
-                   ndata = hcat(state.done_time, state.is_done)')
+                   ndata = (; x))
 end
 
 # function GI.symmetries(::GameSpec, s)

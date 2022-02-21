@@ -37,15 +37,14 @@ mutable struct Gnn <: TwoHeadNetwork
 end
 
 function Gnn(gspec::AbstractGameSpec, hyper::GnnHP)
-  indim = 2
-  GCN_layers(depth) = [GCNConv(hyper.hidden_size => hyper.hidden_size, relu, add_self_loops=true) for i in 1:depth]
+  indim = GI.state_dim(gspec)[1]
+  GCN_layers(depth) = [GCNConv(hyper.hidden_size => hyper.hidden_size, relu, use_edge_weight=true) for _ in 1:depth]
   Dense_layers(depth) = [Dense(hyper.hidden_size, hyper.hidden_size, relu) for i in 1:depth]
-  common = GNNChain(GCNConv(indim => hyper.hidden_size, relu, add_self_loops=true),
-                    GCN_layers(hyper.depth_common)...,
-                    BatchNorm(hyper.hidden_size, relu, momentum=hyper.batch_norm_momentum))
+  common = GNNChain(GCNConv(indim => hyper.hidden_size, relu, use_edge_weight=true),
+                    GCN_layers(hyper.depth_common)...)
   vhead = GNNChain(Dense_layers(hyper.depth_vhead)...,
                     GlobalPool(mean),  
-                    Dense(hyper.hidden_size, 1, relu))
+                    Dense(hyper.hidden_size, 1, identity))
   phead = GNNChain(Dense_layers(hyper.depth_phead)...,
                   Dense(hyper.hidden_size, 1))
   return Gnn(gspec, hyper, common, vhead, phead)
