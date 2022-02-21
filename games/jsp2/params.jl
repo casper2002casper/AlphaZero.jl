@@ -47,9 +47,9 @@ params = Params(
 
 benchmark_sim = SimParams(
   self_play.sim;
-  num_games=100,
-  num_workers=16,
-  batch_size=8)
+  num_games=50,
+  num_workers=1,
+  batch_size=1)
 
   benchmark = [
     Benchmark.Single(
