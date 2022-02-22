@@ -3,8 +3,8 @@ using StaticArrays
 using GraphNeuralNetworks
 using Random 
 
-const M = 3 #num machines
-const N = 3 #num jobs
+const M = 7 #num machines
+const N = 7 #num jobs
 const P_MIN = 1#min time
 const P_MAX = 5#max time
 
@@ -178,8 +178,8 @@ end
 
 function GI.white_reward(g::GameEnv)
   if(all(g.is_done))
-    #println("dt:", g.done_time[T], " ub:", g.UB, " lb:", g.LB, " vl:", (g.UB - g.done_time[T])/g.LB)
-    return ((g.UB - g.done_time[T])/g.LB)
+    #println("dt:", g.done_time[T], " ub:", g.UB, " lb:", g.LB, " vl:", (g.UB - g.done_time[T])/(g.UB - g.LB))
+    return ((g.UB - g.done_time[T])/(g.UB - g.LB))
   end
   return 0
 end
