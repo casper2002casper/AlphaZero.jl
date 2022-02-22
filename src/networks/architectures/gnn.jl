@@ -41,8 +41,8 @@ function Gnn(gspec::AbstractGameSpec, hyper::GnnHP)
   GCN_layers(depth) = [GCNConv(hyper.hidden_size => hyper.hidden_size, relu, add_self_loops=true) for i in 1:depth]
   Dense_layers(depth) = [Dense(hyper.hidden_size, hyper.hidden_size, relu) for i in 1:depth]
   common = GNNChain(GCNConv(indim => hyper.hidden_size, relu, add_self_loops=true),
-                    GCN_layers(hyper.depth_common)...,
-                    BatchNorm(hyper.hidden_size, relu, momentum=hyper.batch_norm_momentum))
+                    GCN_layers(hyper.depth_common)...)
+                    #BatchNorm(hyper.hidden_size, relu, momentum=hyper.batch_norm_momentum))
   vhead = GNNChain(Dense_layers(hyper.depth_vhead)...,
                     GlobalPool(mean),  
                     Dense(hyper.hidden_size, 1, relu))
