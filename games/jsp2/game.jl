@@ -110,19 +110,7 @@ GI.two_players(::GameSpec) = false
 
 GI.state_dim(::GameSpec) = (2, S)
 
-function GI.set_state!(g::GameEnv, s)
- g.process_time = s.process_time
- g.conj_src = s.conj_src
- g.conj_tar = s.conj_tar
- g.UB = s.UB
- g.LB = s.LB
- g.disj_src = s.disj_src
- g.disj_tar = s.disj_tar
- g.is_done = s.is_done
- g.done_time = s.done_time
- g.prev_operation = s.prev_operation
- g.prev_machine = s.prev_machine
-end
+GI.set_state!(g::GameEnv, s) = g = s
 
 GI.current_state(g::GameEnv) = (
   process_time = g.process_time,
