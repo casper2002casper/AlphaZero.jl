@@ -4,7 +4,7 @@ along with a library of standard architectures.
 """
 module FluxLib
 
-export SimpleNet, SimpleNetHP, ResNet, ResNetHP, Gnn, GnnHP
+export SimpleNet, SimpleNetHP, ResNet, ResNetHP, Gcn, GcnHP, Gin, GinHP
 
 using ..AlphaZero
 
@@ -21,7 +21,7 @@ array_on_gpu(::CuArray) = true
 array_on_gpu(arr) = error("Usupported array type: ", typeof(arr))
 
 using Flux: relu, softmax, flatten
-using Flux: Chain, Dense, Conv, BatchNorm, SkipConnection
+using Flux: Chain, Dense, Conv, BatchNorm, SkipConnection, Parallel
 using GraphNeuralNetworks: GCNConv
 import Zygote
 
@@ -161,7 +161,7 @@ Network.hyperparams(nn::TwoHeadNetwork) = nn.hyper
 
 Network.game_spec(nn::TwoHeadNetwork) = nn.gspec
 
-Network.on_gpu(nn::TwoHeadNetwork) = array_on_gpu(nn.common[1].bias)
+Network.on_gpu(nn::TwoHeadNetwork) = array_on_gpu(nn.vhead[end].bias)
 
 #####
 ##### Include networks library
@@ -169,5 +169,6 @@ Network.on_gpu(nn::TwoHeadNetwork) = array_on_gpu(nn.common[1].bias)
 
 include("architectures/simplenet.jl")
 include("architectures/resnet.jl")
-include("architectures/gnn.jl")
+include("architectures/gcn.jl")
+include("architectures/gin.jl")
 end

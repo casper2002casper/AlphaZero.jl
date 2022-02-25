@@ -1,7 +1,9 @@
 using GraphNeuralNetworks
 using Statistics
+
+
 """
-    GnnHP
+    GinHP
 
 Hyperparameters for the gnn architecture.
 
@@ -14,21 +16,21 @@ Hyperparameters for the gnn architecture.
 | `use_batch_norm = false`      | Use batch normalization between each layer   |
 | `batch_norm_momentum = 0.6f0` | Momentum of batch norm statistics updates    |
 """
-@kwdef struct GnnHP
-  depth_common :: Int = 6
+@kwdef struct GinHP
+  depth_common :: Int = 12
   depth_phead :: Int = 3
   depth_vhead :: Int = 3
-  hidden_size :: Int = 50
+  hidden_size :: Int = 100
   use_batch_norm :: Bool = false
   batch_norm_momentum :: Float32 = 0.6f0
 end
 
 """
-    Gnn <: TwoHeadNetwork
+    Gin <: TwoHeadNetwork
 
 A simple two-headed architecture with only dense layers.
 """
-mutable struct Gnn <: TwoHeadNetwork
+mutable struct Gin <: TwoHeadNetwork
   gspec
   hyper
   common
@@ -36,25 +38,27 @@ mutable struct Gnn <: TwoHeadNetwork
   phead
 end
 
-function Gnn(gspec::AbstractGameSpec, hyper::GnnHP)
-  indim = 2
-  GCN_layers(depth) = [GCNConv(hyper.hidden_size => hyper.hidden_size, relu, add_self_loops=true) for i in 1:depth]
-  Dense_layers(depth) = [Dense(hyper.hidden_size, hyper.hidden_size, relu) for i in 1:depth]
-  common = GNNChain(GCNConv(indim => hyper.hidden_size, relu, add_self_loops=true),
-                    GCN_layers(hyper.depth_common)...)
-                    #BatchNorm(hyper.hidden_size, relu, momentum=hyper.batch_norm_momentum))
-  vhead = GNNChain(Dense_layers(hyper.depth_vhead)...,
-                    GlobalPool(mean),  
-                    Dense(hyper.hidden_size, 1, relu))
-  phead = GNNChain(Dense_layers(hyper.depth_phead)...,
-                  Dense(hyper.hidden_size, 1))
-  return Gnn(gspec, hyper, common, vhead, phead)
+function Gin(gspec::AbstractGameSpec, hyper::GinHP)
+  indim, n_nodes  = GI.state_dim(gspec)
+  Dense_layers(size, depth) = [Dense(size, size, relu) for i in 1:depth]
+  f(in, out, i) = Chain(Dense((i==1) ? in : out, out, relu),
+               Dense_layers(out, 2)..., 
+               BatchNorm(out, relu))
+  GIN_layers(in, out, depth) = [GNNChain(GINConv(f(in, out, i),0)) for i in 1:depth]
+  common = GNNChain(GIN_layers(indim, hyper.hidden_size, 3)...)
+  vhead = GNNChain(GlobalPool(mean),  
+                   Dense_layers(hyper.hidden_size, 2)...,
+                   Dense(hyper.hidden_size, 1, relu))
+  phead = GNNChain(Parallel(vcat, GNNChain(GlobalPool(mean), x -> repeat(x, 1, n_nodes)), identity), 
+                   GIN_layers(2*hyper.hidden_size, 32, 2)...,
+                   Dense(32, 1, relu))
+  return Gin(gspec, hyper, common, vhead, phead)
 end
 
-Network.HyperParams(::Type{Gnn}) = GnnHP
+Network.HyperParams(::Type{Gin}) = GinHP
 
-function Base.copy(nn::Gnn)
-  return Gnn(
+function Base.copy(nn::Gin)
+  return Gin(
     nn.gspec,
     nn.hyper,
     deepcopy(nn.common),

@@ -1,6 +1,6 @@
-Network = NetLib.Gnn
+Network = NetLib.Gin
 
-netparams = NetLib.GnnHP()
+netparams = NetLib.GinHP()
 
 self_play = SelfPlayParams(
   sim=SimParams(
