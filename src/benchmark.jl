@@ -78,7 +78,6 @@ function run end
 
 function run(env::Env, eval::Evaluation, progress=nothing)
   net() = Network.copy(env.bestnn, on_gpu=eval.sim.use_gpu, test_mode=true)
-  Random.seed!(1)
   if isa(eval, Single)
     simulator = Simulator(net, record_trace) do net
       instantiate(eval.player, env.gspec, net)
@@ -93,7 +92,8 @@ function run(env::Env, eval::Evaluation, progress=nothing)
   end
   samples, elapsed = @timed simulate(
     simulator, env.gspec, eval.sim,
-    game_simulated=(() -> next!(progress)))
+    game_simulated=(() -> next!(progress)),
+    benchmark = true)
   gamma = env.params.self_play.mcts.gamma
   rewards, redundancy = rewards_and_redundancy(samples, gamma=gamma)
   Random.seed!(convert(Int64, time()÷1))

@@ -1,3 +1,4 @@
+using Random
 #####
 ##### Utilities for distributed game simulation
 #####
@@ -208,8 +209,8 @@ function simulate(
     simulator::Simulator,
     gspec::AbstractGameSpec,
     p::SimParams;
-    game_simulated)
-
+    game_simulated,
+    benchmark = false)
   oracles = simulator.make_oracles()
   spawn_oracles, done =
     batchify_oracles(oracles; p.num_workers, p.batch_size, p.fill_batches)
@@ -229,6 +230,7 @@ function simulate(
         player_pf = player
       end
       # Play the game and generate a report
+      benchmark && Random.seed!(sim_id)
       trace = play_game(gspec, player_pf, flip_probability=p.flip_probability) #Init every i
       report = simulator.measure(trace, colors_flipped, player)
       # Reset the player periodically
