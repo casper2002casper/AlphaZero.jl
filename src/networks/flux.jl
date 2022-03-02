@@ -146,7 +146,6 @@ function Network.forward(nn::TwoHeadNetwork, state)
   c = nn.common(state)
   v = nn.vhead(c, c.ndata.x)
   p = nn.phead(c, c.ndata.x)
-  p = softmax(reshape(p, :, state.num_graphs))
   return (p, v)
 end
 

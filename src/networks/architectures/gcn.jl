@@ -17,8 +17,8 @@ Hyperparameters for the gnn architecture.
 """
 @kwdef struct GcnHP
   depth_common :: Int = 6
-  depth_phead :: Int = 3
-  depth_vhead :: Int = 3
+  depth_phead :: Int = 2
+  depth_vhead :: Int = 2
   hidden_size :: Int = 64
 end
 
@@ -36,15 +36,19 @@ mutable struct Gcn <: TwoHeadNetwork
 end
 
 function Gcn(gspec::AbstractGameSpec, hyper::GcnHP)
-  indim = GI.state_dim(gspec)[1]
-  GCN_layers(depth) = [GNNChain(GCNConv((i==1) ? indim : hyper.hidden_size => hyper.hidden_size, relu, add_self_loops=true),
-                                BatchNorm(hyper.hidden_size)) for i in 1:depth]
-  Dense_layers(depth) = [Dense(hyper.hidden_size, hyper.hidden_size, relu) for i in 1:depth]
-  common = GNNChain(GCN_layers(hyper.depth_common)...)
+  indim, n_nodes  = GI.state_dim(gspec)
+  GCN_layers(depth) = [GNNChain(GCNConv(((i==1) ? indim : hyper.hidden_size) => hyper.hidden_size, relu, add_self_loops=true),
+                                BatchNorm(hyper.hidden_size, relu)) for i in 1:depth]
+  Dense_layers(size, depth) = [Chain(Dense(size, size, relu), BatchNorm(size)) for _ in 1:depth]
+  common = GNNChain(GCN_layers(hyper.depth_common)..., BatchNorm(hyper.hidden_size))
   vhead = GNNChain(GlobalPool(mean),  
+                   Dense_layers(hyper.hidden_size, hyper.depth_vhead)...,
                    Dense(hyper.hidden_size, 1, relu))
-  phead = GNNChain(Dense_layers(hyper.depth_phead)...,
-                  Dense(hyper.hidden_size, 1))
+  phead = GNNChain(Parallel(vcat, GNNChain(GlobalPool(mean), x -> repeat(x, 1, n_nodes)), identity),
+                  Dense_layers(hyper.hidden_size*2, hyper.depth_phead)...,
+                  Dense(hyper.hidden_size*2, 1),
+                  x->reshape(x, n_nodes,:),
+                  softmax)
   return Gcn(gspec, hyper, common, vhead, phead)
 end
 
