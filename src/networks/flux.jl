@@ -83,6 +83,7 @@ function Network.train!(callback, nn::FluxNetwork, opt::Adam, loss, data, n)
     end
     Flux.update!(optimiser, params, grads)
     callback(i, l)
+    i == n && break
   end
 end
 
