@@ -74,9 +74,10 @@ function losses(nn, regws, params, Wmean, Hp, (W, X, A, P, V))
   # `regws` must be equal to `Network.regularized_params(nn)`
   creg = params.l2_regularization
   cinv = params.nonvalidity_penalty
+  renorm = params.rewards_renormalization
   P̂, V̂, p_invalid = Network.forward_normalized(nn, X, A)
-  V = V ./ params.rewards_renormalization
-  V̂ = V̂ ./ params.rewards_renormalization
+  V = isone(renorm) ? V : V ./ renorm
+  V̂ = isone(renorm) ? V̂ : V̂ ./ renorm
   Lp = klloss_wmean(P̂, P, W) - Hp
   Lv = mse_wmean(V̂, V, W)
   Lreg = iszero(creg) ?
