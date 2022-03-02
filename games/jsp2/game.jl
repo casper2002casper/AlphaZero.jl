@@ -1,10 +1,9 @@
 import AlphaZero.GI
-using StaticArrays
 using GraphNeuralNetworks
 using Random 
 
 const M = 7 #num machines
-const N = 7 #num jobs
+const N = 7#num jobs
 const P_MIN = 1#min time
 const P_MAX = 5#max time
 
@@ -17,8 +16,8 @@ i2mn(i) = CartesianIndices((M,N))[i]
 
 struct GameSpec <: GI.AbstractGameSpec end
 
-function generate_conjuctive_edges()
-  order = reduce(vcat,[(randperm(M).+i*M) for i in 0:N-1])#flattend order of operations
+function generate_conjuctive_edges(rng::AbstractRNG)
+  order = reduce(vcat,[(randperm(rng, M).+i*M) for i in 0:N-1])#flattend order of operations
   target = zeros(UInt8, N_NODES+1+N)
   target[T] = T
   n = 0
@@ -51,24 +50,24 @@ end
 
 mutable struct GameEnv <: GI.AbstractGameEnv 
   #Problem instance
-  process_time::SVector{S, UInt8} #Index in Mxn
-  conj_src::SVector{N_NODES+1+N, UInt8}
-  conj_tar::SVector{N_NODES+1+N, UInt8}
-  UB::UInt32
-  LB::UInt32
+  process_time::Vector{UInt8} #Index in Mxn
+  conj_src::Vector{UInt8}
+  conj_tar::Vector{UInt8}
+  UB::UInt16
+  LB::UInt16
   #State
-  disj_src::MVector{N_NODES, UInt8}
-  disj_tar::MVector{N_NODES, UInt8}
-  is_done::MVector{S, Bool}
-  done_time::MVector{S, UInt32}
+  disj_src::Vector{UInt8}
+  disj_tar::Vector{UInt8}
+  is_done::Vector{Bool}
+  done_time::Vector{UInt16}
   #Info
-  prev_operation::MVector{N, UInt8}
-  prev_machine::MVector{M, UInt8}
+  prev_operation::Vector{UInt8}
+  prev_machine::Vector{UInt8}
 end
 
-function GI.init(::GameSpec) 
-  p_time = [rand(P_MIN:P_MAX,N_NODES); 0; 0] #Nodes time plus t, s = 0
-  conj_tar = generate_conjuctive_edges()
+function GI.init(::GameSpec; rng::AbstractRNG = Random.GLOBAL_RNG) 
+  p_time = [rand(rng, P_MIN:P_MAX,N_NODES); 0; 0] #Nodes time plus t, s = 0
+  conj_tar = generate_conjuctive_edges(rng)
   start_nodes = collect(0:N-1) .+ S
   return GameEnv(
     #Problem instance
@@ -173,10 +172,14 @@ function GI.white_reward(g::GameEnv)
 end
 
 function GI.vectorize_state(::GameSpec, state) 
+  # println([state.conj_src; state.disj_src])
+  # println([state.conj_tar; state.disj_tar])
+  # println(S)
+  # println(Float32.(hcat(state.done_time, state.is_done)'))
   return  GNNGraph([state.conj_src; state.disj_src], 
                    [state.conj_tar; state.disj_tar], 
                    num_nodes = S, 
-                   ndata = hcat(state.done_time, state.is_done)')
+                   ndata = Float32.(hcat(state.done_time, state.is_done)'))
 end
 
 # function GI.symmetries(::GameSpec, s)
@@ -184,7 +187,7 @@ end
 # end
 
 #####
-##### Interaction API
+##### Interaction APIc
 #####
 
 function GI.action_string(::GameSpec, a)
