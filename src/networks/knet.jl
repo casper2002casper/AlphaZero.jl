@@ -116,8 +116,11 @@ end
 
 function Network.train!(callback, nn::KNetwork, opt::Adam, loss, data, n)
   optimiser = Knet.Adam(lr=opt.lr)
-  for (i, l) in enumerate(Knet.minimize(loss, data, optimiser))
+  for (i, d) in enumerate(data)
+    d = Network.convert_input_tuple(nn, d)
+    Knet.minimize(loss, d, optimiser)
     callback(i, l)
+    i == n && break
   end
 end
 
