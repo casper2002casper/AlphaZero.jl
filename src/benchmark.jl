@@ -92,8 +92,7 @@ function run(env::Env, eval::Evaluation, progress=nothing)
   end
   samples, elapsed = @timed simulate(
     simulator, env.gspec, eval.sim,
-    game_simulated=(() -> next!(progress)),
-    benchmark = true)
+    game_simulated=(() -> next!(progress)))
   gamma = env.params.self_play.mcts.gamma
   rewards, redundancy = rewards_and_redundancy(samples, gamma=gamma)
   Random.seed!(convert(Int64, time()÷1))

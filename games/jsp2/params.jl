@@ -50,6 +50,7 @@ benchmark_sim = SimParams(
   num_games=12,
   num_workers=4,
   batch_size=2)
+  deterministic = true)
 
   benchmark = [
     Benchmark.Single(

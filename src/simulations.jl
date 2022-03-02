@@ -209,8 +209,7 @@ function simulate(
     simulator::Simulator,
     gspec::AbstractGameSpec,
     p::SimParams;
-    game_simulated,
-    benchmark = false)
+    game_simulated)
   oracles = simulator.make_oracles()
   spawn_oracles, done =
     batchify_oracles(oracles; p.num_workers, p.batch_size, p.fill_batches)
@@ -218,8 +217,14 @@ function simulate(
     oracles = spawn_oracles()
     player = simulator.make_player(oracles)
     worker_sim_id = 0
+    seed = 0
     # For each worker
     function simulate_game(sim_id)
+      # Reset the player periodically
+      if !isnothing(p.reset_every) && worker_sim_id % p.reset_every == 0 
+        reset_player!(player)
+        seed = sim_id
+      end
       worker_sim_id += 1
       # Switch players' colors if necessary: "_pf" stands for "possibly flipped"
       if isa(player, TwoPlayers) && p.alternate_colors
@@ -230,13 +235,9 @@ function simulate(
         player_pf = player
       end
       # Play the game and generate a report
-      benchmark && Random.seed!(sim_id)
-      trace = play_game(gspec, player_pf, flip_probability=p.flip_probability) #Init every i
+      rng = p.deterministic ? MersenneTwister(seed) : Random.GLOBAL_RNG
+      trace = play_game(gspec, player_pf, flip_probability=p.flip_probability, rng = rng) 
       report = simulator.measure(trace, colors_flipped, player)
-      # Reset the player periodically
-      if !isnothing(p.reset_every) && worker_sim_id % p.reset_every == 0 #Reset every n
-        reset_player!(player)
-      end
       # Signal that a game has been simulated
       game_simulated()
       return report
