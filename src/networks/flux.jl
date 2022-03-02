@@ -77,6 +77,7 @@ function Network.train!(callback, nn::FluxNetwork, opt::Adam, loss, data, n)
   optimiser = Flux.ADAM(opt.lr)
   params = Flux.params(nn)
   for (i, d) in enumerate(data)
+    d = Network.convert_input_tuple(tr.network, d)
     l, grads = lossgrads(params) do
       loss(d...)
     end
