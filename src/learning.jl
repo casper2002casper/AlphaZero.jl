@@ -168,12 +168,13 @@ end
 
 function learning_status(tr::Trainer)
   batchsize = min(tr.params.loss_computation_batch_size, num_samples(tr))
-  batches = Flux.Data.DataLoader(tr.data; batchsize, partial=true)
-  reports = map(batches) do batch
-    batch = Network.convert_input_tuple(tr.network, batch)
-    return learning_status(tr, batch)
+  batches = Flux.Data.DataLoader(tr.dataloader.data; batchsize, partial=true)
+  reports = []
+  ws = []
+  for batch in batches
+    push!(reports, learning_status(tr, batch))
+    push!(ws, sum(batch.W))
   end
-  ws = [sum(batch.W) for batch in batches]
   return mean_learning_status(reports, ws)
 end
 
