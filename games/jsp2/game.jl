@@ -146,14 +146,14 @@ function GI.play!(g::GameEnv, o)
   #mark operation scheduled
   g.is_done[o] = true
   mn = i2mn(o)
-  #determine if all opperations are done
-  all(g.conj_tar[g.prev_operation].==T) && (g.is_done[T] = true)
   #update previous operation and machine
   k = g.prev_machine[mn[1]] #previous operation done on machine of todo operation
   l = g.prev_operation[mn[2]] #previous operation done in job of todo operation
   #update info vectors
   g.prev_machine[mn[1]] = o
   g.prev_operation[mn[2]] = o
+  #determine if all opperations are done
+  all(g.conj_tar[g.prev_operation].==T) && (g.is_done[T] = true)
   #add disjunctive link
   g.disj_tar[k] = o
   #convert from edge to node notation
