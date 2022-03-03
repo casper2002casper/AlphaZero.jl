@@ -27,7 +27,7 @@ end
 
 A simple two-headed architecture with only dense layers.
 """
-mutable struct Gcn <: TwoHeadNetwork
+mutable struct Gcn <: TwoHeadGraphNeuralNetwork
   gspec
   hyper
   common
