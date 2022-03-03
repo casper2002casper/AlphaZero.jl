@@ -269,9 +269,16 @@ function forward_normalized(nn::AbstractNetwork, state, actions_mask)
   return (p, v, p_invalid)
 end
 
-to_singletons(x) = reshape(x, size(x)..., 1)
-from_singletons(x) = reshape(x, size(x)[1:end-1])
-
+function to_singletons(x)
+  if typeof(x) <: Matrix
+    return reshape(x, size(x)..., 1)
+  else
+    return x
+  end
+end
+function from_singletons(x)
+  reshape(x, size(x)[1:end-1])
+end
 """
     evaluate(::AbstractNetwork, state)
 
