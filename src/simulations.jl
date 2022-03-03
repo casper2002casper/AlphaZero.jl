@@ -235,8 +235,7 @@ function simulate(
         player_pf = player
       end
       # Play the game and generate a report
-      rng = p.deterministic ? MersenneTwister(seed) : Random.GLOBAL_RNG
-      trace = play_game(gspec, player_pf, flip_probability=p.flip_probability, rng = rng) 
+      trace = play_game(gspec, player_pf, flip_probability=p.flip_probability, rng=p.deterministic ? MersenneTwister(seed) : Random.GLOBAL_RNG)
       report = simulator.measure(trace, colors_flipped, player)
       # Signal that a game has been simulated
       game_simulated()

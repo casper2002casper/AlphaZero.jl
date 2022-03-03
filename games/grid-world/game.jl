@@ -5,7 +5,7 @@
 using CommonRLInterface
 using StaticArrays
 using Crayons
-using GraphNeuralNetworks
+using Random: AbstractRNG
 
 const RL = CommonRLInterface
 const SIZE = SA[5,5]
@@ -54,10 +54,9 @@ function World()
     0)
 end
 
-function RL.reset!(env::World)
-  env.position = rand(1:NUM_N)
-  env.time = 0
-end
+RL.reset!(env::World) = (env.state = SA[rand(1:env.size[1]), rand(1:env.size[2])])
+RL.actions(env::World) = [SA[1,0], SA[-1,0], SA[0,1], SA[0,-1]]
+RL.observe(env::World) = env.state
 
 RL.actions(env::World) = collect(1:NUM_N)
 RL.observe(env::World) = env.position

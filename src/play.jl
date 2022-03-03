@@ -2,7 +2,7 @@ using Random
 #####
 ##### Interface for players
 #####
-
+using Random: AbstractRNG, GLOBAL_RNG
 """
     AbstractPlayer
 
@@ -299,7 +299,7 @@ Simulate a game by an [`AbstractPlayer`](@ref).
   using [`GI.apply_random_symmetry!`](@ref).
 """
 function play_game(gspec, player; flip_probability=0., rng::AbstractRNG=Random.GLOBAL_RNG)
-  game = GI.init(gspec, rng = rng)
+  game = GI.init(gspec, rng)
   trace = Trace(GI.current_state(game))
   while true
     if GI.game_terminated(game)
