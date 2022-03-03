@@ -143,10 +143,19 @@ is provided for [`Network.hyperparams`](@ref), [`Network.game_spec`](@ref),
 """
 abstract type TwoHeadNetwork <: FluxNetwork end
 
-function Network.forward(nn::TwoHeadNetwork, state)
+abstract type TwoHeadGraphNeuralNetwork <: TwoHeadNetwork end
+
+function Network.forward(nn::TwoHeadGraphNeuralNetwork, state)
   c = nn.common(state)
   v = nn.vhead(c, c.ndata.x)
   p = nn.phead(c, c.ndata.x)
+  return (p, v)
+end
+
+function Network.forward(nn::TwoHeadNetwork, state)
+  c = nn.common(state)
+  v = nn.vhead(c)
+  p = nn.phead(c)
   return (p, v)
 end
 

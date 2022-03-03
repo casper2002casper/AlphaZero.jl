@@ -30,7 +30,7 @@ end
 
 A simple two-headed architecture with only dense layers.
 """
-mutable struct Gin <: TwoHeadNetwork
+mutable struct Gin <: TwoHeadGraphNeuralNetwork
   gspec
   hyper
   common
