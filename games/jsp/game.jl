@@ -1,41 +1,27 @@
-
-using CommonRLInterface
-using StaticArrays
-using Crayons
-using Random
+import AlphaZero.GI
 using GraphNeuralNetworks
+using Random 
+using Crayons
 
-const RL = CommonRLInterface
-
-
-const M = 3 #num machines
+const M = 4 #num machines
 const N = 4 #num jobs
 const P_MIN = 1#min time
 const P_MAX = 5#max time
-const NUM_N = M*N + 2
-const S = M*N+1
-const T = M*N+N+1
 
-const num_sym = 16
-const sqr_num_sym = round(sqrt(num_sym))
+const N_NODES = M*N
+const T = M*N+1 #[nodes, T, S]
+const S = M*N+2 
 
-nm2i(n,m) = n*N + m 
 
-mutable struct World <: AbstractEnv
-  #Problem instance
-  process_time::SMatrix{M, N, UInt8} #Time of operations
-  conj_src::SVector{NUM_N, UInt8}
-  conj_tar::SVector{NUM_N, UInt8}
-  #State
-  disj_src::Vector{UInt8}
-  disj_tar::Vector{UInt8}
-  is_done::MMatrix{M, N, Bool}
-  done_time::MMatrix{M, N, UInt16}
-end
+i2mn(i) = CartesianIndices((M,N))[i]
+mn2i(m,n) = LinearIndices((M,N))[m,n]
 
-function generate_conjuctive_edges()
-  order = reduce(vcat,[(randperm(M).+i*N) for i in 0:N-1])
-  target = zeros(UInt8, N*(M+1))
+struct GameSpec <: GI.AbstractGameSpec end
+
+function generate_conjuctive_edges(rng::AbstractRNG)
+  order = reduce(vcat,[(randperm(rng, M).+i*M) for i in 0:N-1])#flattend order of operations
+  target = zeros(UInt8, N_NODES+1+N)
+  target[T] = T
   n = 0
   for i in 1:N*M
     if(i%M == 1) #first in row: s->
@@ -51,106 +37,226 @@ function generate_conjuctive_edges()
   return target
 end
 
-function World()
-  process_time = rand(P_MIN:P_MAX,N,M)
-  return World(
-    rand(P_MIN:P_MAX,N,M),
-    [collect(1:N*M)..., S * ones(N)..., T],
-    generate_conjuctive_edges(),
-    [],
-    [],
-    falses(M, N),
-    zeros(UInt16, M, N)
-    )
-end
-
-function RL.reset!(env::World) #Generate new problem
-  env.process_time = rand(P_MIN:P_MAX,N,M)
-  env.conj_tar = generate_conjuctive_edges()
-  env.disj_src = []
-  env.disj_tar = []
-  env.done_time = zeros(UInt16,M, N)
-end  
-
-RL.actions(env::World) = [i for i = 1:NUM_N] 
-
-RL.observe(env::World) = env
-
-RL.terminated(env::World) = all(env.is_done)
-
-function RL.act!(env::World, a) #Job a
-
-
-  for i = 1:M
-    b = env.precendence[a,i] #Machine b
-    if(!iszero(b)) #If not done, schedule it
-      #job_ready_time = completion_time last operation n, m-1
-      #machine_ready_time = completion_time last on machine max(n, m)
-      done_time = max(env.machine_ready_time[b], env.job_ready_time[a]) + env.process_time[a,b]
-      env.machine_ready_time[b] = done_time #Machine isn't usable untill scheduled operation is done
-      env.job_ready_time[a] = done_time 
-      env.process_time[a,b] = 0
-      env.precendence[a,i] = 0
-      break
+function generate_done_time(p_time, conj_tar, start_edges)
+  done_time = zeros(UInt16, S)
+  for o in start_edges
+    last_done_time = 0
+    while(true)#propagate expected done time
+      o = conj_tar[o]
+      last_done_time = done_time[o] = max(last_done_time + p_time[o], done_time[o])
+      o == T && break
     end
   end
-  if(iszero(env.process_time))
-    return -convert(Float32,maximum(env.machine_ready_time))
-  else
-    return 0.0
-  end  
+  return done_time
 end
-@provide function RL.valid_action_mask(env::World) 
-  valid_actions = zeros(Bool, NUM_N)
-  for (n,m) in enumerate(env.to_schedule)
-    valid_actions[nm2i(n,m)] = true
+
+mutable struct GameEnv <: GI.AbstractGameEnv 
+  #Problem instance
+  process_time::Vector{UInt8} #Index in Mxn
+  conj_src::Vector{UInt8}
+  conj_tar::Vector{UInt8}
+  UB::UInt16
+  LB::UInt16
+  #State
+  disj_src::Vector{UInt8}
+  disj_tar::Vector{UInt8}
+  is_done::Vector{Bool}
+  done_time::Vector{UInt16}
+  #Info
+  prev_operation::Vector{UInt8}
+  prev_machine::Vector{UInt8}
+end
+
+function GI.init(::GameSpec, rng::AbstractRNG) 
+  p_time = [rand(rng, P_MIN:P_MAX,N_NODES); 0; 0] #Nodes time plus t, s = 0
+  conj_tar = generate_conjuctive_edges(rng)
+  start_edges_n = collect(0:N-1) .+ S
+  start_edges_m = collect(0:M-1) .+ S
+  return GameEnv(
+    #Problem instance
+    p_time,
+    [collect(1:N_NODES)..., T, S * ones(N)...],
+    conj_tar,
+    sum(p_time),
+    maximum(sum.([p_time[i*M+1:(i+1)*M] for i in 0:N-1])),
+    #State
+    [collect(1:N_NODES)..., T, S * ones(M)...],
+    [collect(1:N_NODES)..., T, S * ones(M)...],
+    [falses(N_NODES)..., false, true], #[nodes, T, S]
+    generate_done_time(p_time, conj_tar, start_edges_n),
+    #Info
+    start_edges_n, 
+    start_edges_m
+  )
+end
+
+GI.init(::GameSpec, s) = GameEnv(
+  #Static values
+  s.process_time,
+  s.conj_src,
+  s.conj_tar,
+  s.UB,
+  s.LB,
+  #Mutable values
+  copy(s.disj_src),
+  copy(s.disj_tar),
+  copy(s.is_done),
+  copy(s.done_time),
+  copy(s.prev_operation),
+  copy(s.prev_machine),
+)
+
+GI.spec(::GameEnv) = GameSpec()
+
+GI.two_players(::GameSpec) = false
+
+GI.state_dim(::GameSpec) = (2, S)
+
+GI.set_state!(g::GameEnv, s) = g = s
+
+GI.current_state(g::GameEnv) = (
+  process_time = g.process_time,
+  conj_src = g.conj_src,
+  conj_tar = g.conj_tar,
+  UB = g.UB,
+  LB = g.LB,
+  disj_src = copy(g.disj_src),
+  disj_tar = copy(g.disj_tar),
+  is_done = copy(g.is_done),
+  done_time = copy(g.done_time),
+  prev_operation = copy(g.prev_operation),
+  prev_machine = copy(g.prev_machine),
+)
+
+GI.white_playing(g::GameEnv) = true
+
+GI.game_terminated(g::GameEnv) = all(g.is_done)
+
+const ACTIONS = collect(1:S)
+GI.actions(::GameSpec) = ACTIONS
+
+function GI.actions_mask(g::GameEnv)
+  valid_action = zeros(Bool, S)
+  valid_action[g.conj_tar[g.prev_operation]] .= true
+  valid_action[T] = false #We cant schedule sink node
+  return valid_action
+end
+
+function GI.play!(g::GameEnv, o)
+  #mark operation scheduled
+  g.is_done[o] = true
+  mn = i2mn(o)
+  #update previous operation and machine
+  k = g.prev_machine[mn[1]] #previous operation done on machine of todo operation
+  l = g.prev_operation[mn[2]] #previous operation done in job of todo operation
+  #update info vectors
+  g.prev_machine[mn[1]] = o
+  g.prev_operation[mn[2]] = o
+  #determine if all opperations are done
+  all(g.conj_tar[g.prev_operation].==T) && (g.is_done[T] = true)
+  #add disjunctive link
+  g.disj_tar[k] = o
+  #convert from edge to node notation
+  l = min(l, S)
+  k = min(k, S)
+  #update done time
+  last_done_time = g.done_time[o] = max(g.done_time[l], g.done_time[k] * g.is_done[k]) + g.process_time[o]
+  while(true)#propagate expected done time
+    o = g.conj_tar[o]
+    last_done_time = g.done_time[o] = max(g.done_time[o], last_done_time + g.process_time[o])
+    o == T && return
   end
-  return valid_actions
-end
-@provide RL.player(env::World) = 1 # An MDP is a one player game
-@provide RL.players(env::World) = [1]
-@provide RL.clone(env::World) = #World(copy(env.process_time), copy(env.precendence), copy(env.machine_ready_time), copy(env.job_ready_time))
-@provide RL.state(env::World) = env
-
-@provide function RL.setstate!(env::World, state)
-  env.process_time, env.precendence, env.machine_ready_time, env.job_ready_time = state
-  env.c_min = maximum(sum(env.process_time[:,m] for m in 1:M))
 end
 
-function GI.vectorize_state(env::World, state) #[env.process_time, env.precendence, env.machine_ready_time, env.job_ready_time]
-  return GNNGraph([env.conj_src;env.disj_src], 
-                  [env.conj_tar; env.conj_tar], 
-                  [env.process_time..., ones(UInt8, size(env.disj_tar))], 
-                  num_nodes = NUM_N, 
-                  ndata = [env.done_time...])
+function GI.white_reward(g::GameEnv)
+  if(all(g.is_done))
+    #println("dt:", g.done_time[T], " ub:", g.UB, " lb:", g.LB, " vl:", (g.UB - g.done_time[T])/(g.UB - g.LB))
+    return -convert(Float32, g.done_time[T])
+    #return ((g.UB - g.done_time[T])/(g.UB - g.LB))
+  end
+  return 0
 end
 
-function GI.action_string(env::World, a)
-  return string(a)
+function GI.vectorize_state(::GameSpec, state) 
+  # println([state.conj_src; state.disj_src])
+  # println([state.conj_tar; state.disj_tar])
+  # println(S)
+  # println(Float32.(hcat(state.done_time, state.is_done)'))
+  return  GNNGraph([state.conj_src; state.disj_src], 
+                   [state.conj_tar; state.disj_tar], 
+                   num_nodes = S, 
+                   ndata = Float32.(hcat(state.done_time, state.is_done)'))
 end
 
-# function GI.symmetries(env::World, state) 
-#   #[masked_process_time, precendence_state, normalized_machine_ready_time, normalized_job_ready_time, env.time]
-#   return [([state[1][order_n, order_m], 
-#             state[2][order_m, order_m, order_n],
-#             state[3][order_m],
-#             state[4][order_n],
-#             state[5]],
-#             order_n) 
-#             for order_n in unique([randperm(n) for _ in 1:sqr_num_sym])
-#               for order_m in unique([randperm(m) for () in 1:sqr_num_sym])]
-#   end
+# function generate_symmetries(n)
 
-# function GI.render(env::World)
+
+# end  
+
+# const SYMMETRIES = generate_symmetries(10)
+
+# function GI.symmetries(::GameSpec, s)
+#   return [
+#     ((process_time = s.process_time,
+#       conj_src = s.conj_src[sym],
+#       conj_tar = s.conj_tar[sym],
+#       UB = s.UB,
+#       LB = s.LB,
+#       disj_src = s.disj_src[sym],
+#       disj_tar = s.disj_tar[sym],
+#       is_done = s.is_done[sym],
+#       done_time = s.done_time[sym],
+#       prev_operation = s.prev_operation,
+#       prev_machine = s.prev_machine,
+#     ), sym)
+#     for sym in SYMMETRIES]
 # end
 
+#####
+##### Interaction APIc
+#####
 
-# function GI.parse_action(env::World, s)
-# end
+function GI.action_string(::GameSpec, o)
+  mn = i2mn(o)
+  return string("job: ", mn[2], " machine: ", mn[1])
+end
 
-# function GI.read_state(env::World)
-# end
+function GI.parse_action(::GameSpec, str)
+  try
+    s = split(str)
+    @assert length(s) == 2
+    n = parse(Int, s[1])
+    m = parse(Int, s[2])
+    return mn2i(m,n)
+  catch e
+    return nothing
+  end
+end
 
-GI.heuristic_value(::World) = 0.
 
-GameSpec() = CommonRLInterfaceWrapper.Spec(World())
+function GI.read_state(::GameSpec)#input problem
+  return nothing
+end
+
+
+function GI.render(g::GameEnv) 
+  for (m,o) in enumerate(g.disj_tar[S:end])
+    print(crayon"white", "m", m, ":")
+    o == S && (println(); continue)
+    last_op = 0
+    while(true)
+      mn = i2mn(o)
+      idle = (crayon"dark_gray", repeat("-", g.done_time[o] - (last_op + g.process_time[o])))
+      active = (Crayon(foreground = mn[2]), repeat("=", g.process_time[o]))
+      print(idle..., active...)
+      last_op = g.done_time[o]
+      g.disj_tar[o] == o && break
+      o = g.disj_tar[o]
+    end
+    println(crayon"reset")
+  end
+  for n in 1:N
+    print(Crayon(foreground = n), "n", n, " ")
+  end
+  println()
+end
