@@ -42,7 +42,7 @@ function convert_samples(
     
   ces = [convert_sample(gspec, wp, e) for e in es]
   W = Flux.batch([e.w for e in ces])
-  X = Flux.batch([e.x for e in ces])
+  X = typeof(ces[1].x) <: Matrix ? Flux.batch([e.x for e in ces]) : [e.x for e in ces] 
   A = Flux.batch([e.a for e in ces])
   P = Flux.batch([e.p for e in ces])
   V = Flux.batch([e.v for e in ces])
