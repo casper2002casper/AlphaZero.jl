@@ -97,7 +97,7 @@ function plot_iteration(
   losses = Util.momentum_smoothing(report.learning.losses, 0.1)
   lplot = Plots.plot(collect(eachindex(losses)), losses,
     title="Loss on Minibatches",
-    ylims=(0, Inf),
+    #ylims=(0, Inf),
     legend=nothing,
     xlabel="Batch number")
   push!(plots, ("iter_loss", lplot))
