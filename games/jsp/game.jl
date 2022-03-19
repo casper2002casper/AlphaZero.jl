@@ -3,22 +3,25 @@ using GraphNeuralNetworks
 using Random 
 using Crayons
 
-const M = 4 #num machines
-const N = 4 #num jobs
+# const M = 5 #num machines
+# const N = 5 #num jobs
 const P_MIN = 1#min time
 const P_MAX = 5#max time
 
-const N_NODES = M*N
-const T = M*N+1 #[nodes, T, S]
-const S = M*N+2 
+# const N_NODES = M*N
+# const T = M*N+1 #[nodes, T, S]
+# const S = M*N+2 
 
 
-i2mn(i) = CartesianIndices((M,N))[i]
-mn2i(m,n) = LinearIndices((M,N))[m,n]
+i2mn(i, M, N) = CartesianIndices((M,N))[i]
+mn2i(m, n, M, N) = LinearIndices((M,N))[m,n]
 
-struct GameSpec <: GI.AbstractGameSpec end
+struct GameSpec <: GI.AbstractGameSpec 
+  M::UInt8
+  N::UInt8
+end
 
-function generate_conjuctive_edges(rng::AbstractRNG)
+function generate_conjuctive_edges(rng::AbstractRNG, M, N, N_NODES, T, S)
   order = reduce(vcat,[(randperm(rng, M).+i*M) for i in 0:N-1])#flattend order of operations
   target = zeros(UInt8, N_NODES+1+N)
   target[T] = T
@@ -37,7 +40,7 @@ function generate_conjuctive_edges(rng::AbstractRNG)
   return target
 end
 
-function generate_done_time(p_time, conj_tar, start_edges)
+function generate_done_time(p_time, conj_tar, start_edges, S, T)
   done_time = zeros(UInt16, S)
   for o in start_edges
     last_done_time = 0
@@ -55,8 +58,13 @@ mutable struct GameEnv <: GI.AbstractGameEnv
   process_time::Vector{UInt8} #Index in Mxn
   conj_src::Vector{UInt8}
   conj_tar::Vector{UInt8}
-  UB::UInt16
-  LB::UInt16
+  M::UInt8
+  N::UInt8
+  N_NODES::UInt16
+  T::UInt16
+  S::UInt16
+  # UB::UInt16
+  # LB::UInt16
   #State
   disj_src::Vector{UInt8}
   disj_tar::Vector{UInt8}
@@ -67,9 +75,14 @@ mutable struct GameEnv <: GI.AbstractGameEnv
   prev_machine::Vector{UInt8}
 end
 
-function GI.init(::GameSpec, rng::AbstractRNG) 
+function GI.init(spec::GameSpec, rng::AbstractRNG) 
+  M = spec.M
+  N = spec.M
+  N_NODES = M*N #[nodes, T, S]
+  T = M*N+1 
+  S = M*N+2 
   p_time = [rand(rng, P_MIN:P_MAX,N_NODES); 0; 0] #Nodes time plus t, s = 0
-  conj_tar = generate_conjuctive_edges(rng)
+  conj_tar = generate_conjuctive_edges(rng, M, N, N_NODES, T, S)
   start_edges_n = collect(0:N-1) .+ S
   start_edges_m = collect(0:M-1) .+ S
   return GameEnv(
@@ -77,26 +90,36 @@ function GI.init(::GameSpec, rng::AbstractRNG)
     p_time,
     [collect(1:N_NODES)..., T, S * ones(N)...],
     conj_tar,
-    sum(p_time),
-    maximum(sum.([p_time[i*M+1:(i+1)*M] for i in 0:N-1])),
+    M,
+    N,
+    N_NODES,
+    T,
+    S,
+    # sum(p_time),
+    # maximum(sum.([p_time[i*M+1:(i+1)*M] for i in 0:N-1])),
     #State
     [collect(1:N_NODES)..., T, S * ones(M)...],
     [collect(1:N_NODES)..., T, S * ones(M)...],
     [falses(N_NODES)..., false, true], #[nodes, T, S]
-    generate_done_time(p_time, conj_tar, start_edges_n),
+    generate_done_time(p_time, conj_tar, start_edges_n, S, T),
     #Info
     start_edges_n, 
     start_edges_m
   )
 end
 
-GI.init(::GameSpec, s) = GameEnv(
+GI.init(spec::GameSpec, s) = GameEnv(
   #Static values
   s.process_time,
   s.conj_src,
   s.conj_tar,
-  s.UB,
-  s.LB,
+  s.M,
+  s.N,
+  s.N_NODES,
+  s.T,
+  spec.M * spec.N + 2,
+  # s.UB,
+  # s.LB,
   #Mutable values
   copy(s.disj_src),
   copy(s.disj_tar),
@@ -106,11 +129,11 @@ GI.init(::GameSpec, s) = GameEnv(
   copy(s.prev_machine),
 )
 
-GI.spec(::GameEnv) = GameSpec()
+GI.spec(g::GameEnv) = GameSpec(g.M,g.N)
 
 GI.two_players(::GameSpec) = false
 
-GI.state_dim(::GameSpec) = (2, S)
+GI.state_dim(spec::GameSpec) = (2, (spec.M*spec.N+2))#Opperations + source and sink
 
 GI.set_state!(g::GameEnv, s) = g = s
 
@@ -118,8 +141,13 @@ GI.current_state(g::GameEnv) = (
   process_time = g.process_time,
   conj_src = g.conj_src,
   conj_tar = g.conj_tar,
-  UB = g.UB,
-  LB = g.LB,
+  M = g.M,
+  N = g.N,
+  N_NODES = g.N_NODES,
+  T = g.T,
+  S = g.S,
+  # UB = g.UB,
+  # LB = g.LB,
   disj_src = copy(g.disj_src),
   disj_tar = copy(g.disj_tar),
   is_done = copy(g.is_done),
@@ -132,20 +160,19 @@ GI.white_playing(g::GameEnv) = true
 
 GI.game_terminated(g::GameEnv) = all(g.is_done)
 
-const ACTIONS = collect(1:S)
-GI.actions(::GameSpec) = ACTIONS
+GI.actions(spec::GameSpec) = collect(1:(spec.M*spec.N+2)) 
 
 function GI.actions_mask(g::GameEnv)
-  valid_action = zeros(Bool, S)
+  valid_action = zeros(Bool, g.S)
   valid_action[g.conj_tar[g.prev_operation]] .= true
-  valid_action[T] = false #We cant schedule sink node
+  valid_action[g.T] = false #We cant schedule sink node
   return valid_action
 end
 
 function GI.play!(g::GameEnv, o)
   #mark operation scheduled
   g.is_done[o] = true
-  mn = i2mn(o)
+  mn = i2mn(o, g.M, g.N)
   #update previous operation and machine
   k = g.prev_machine[mn[1]] #previous operation done on machine of todo operation
   l = g.prev_operation[mn[2]] #previous operation done in job of todo operation
@@ -153,81 +180,53 @@ function GI.play!(g::GameEnv, o)
   g.prev_machine[mn[1]] = o
   g.prev_operation[mn[2]] = o
   #determine if all opperations are done
-  all(g.conj_tar[g.prev_operation].==T) && (g.is_done[T] = true)
+  all(g.conj_tar[g.prev_operation].==g.T) && (g.is_done[g.T] = true)
   #add disjunctive link
   g.disj_tar[k] = o
   #convert from edge to node notation
-  l = min(l, S)
-  k = min(k, S)
+  l = min(l, g.S)
+  k = min(k, g.S)
   #update done time
   last_done_time = g.done_time[o] = max(g.done_time[l], g.done_time[k] * g.is_done[k]) + g.process_time[o]
   while(true)#propagate expected done time
     o = g.conj_tar[o]
     last_done_time = g.done_time[o] = max(g.done_time[o], last_done_time + g.process_time[o])
-    o == T && return
+    o == g.T && return
   end
 end
 
 function GI.white_reward(g::GameEnv)
   if(all(g.is_done))
     #println("dt:", g.done_time[T], " ub:", g.UB, " lb:", g.LB, " vl:", (g.UB - g.done_time[T])/(g.UB - g.LB))
-    return -convert(Float32, g.done_time[T])
+    return -convert(Float32, g.done_time[g.T])
     #return ((g.UB - g.done_time[T])/(g.UB - g.LB))
   end
   return 0
 end
 
 function GI.vectorize_state(::GameSpec, state) 
-  # println([state.conj_src; state.disj_src])
-  # println([state.conj_tar; state.disj_tar])
-  # println(S)
-  # println(Float32.(hcat(state.done_time, state.is_done)'))
   return  GNNGraph([state.conj_src; state.disj_src], 
                    [state.conj_tar; state.disj_tar], 
-                   num_nodes = S, 
+                   num_nodes = state.S, 
                    ndata = Float32.(hcat(state.done_time, state.is_done)'))
 end
-
-# function generate_symmetries(n)
-
-
-# end  
-
-# const SYMMETRIES = generate_symmetries(10)
-
-# function GI.symmetries(::GameSpec, s)
-#   return [
-#     ((process_time = s.process_time,
-#       conj_src = s.conj_src[sym],
-#       conj_tar = s.conj_tar[sym],
-#       UB = s.UB,
-#       LB = s.LB,
-#       disj_src = s.disj_src[sym],
-#       disj_tar = s.disj_tar[sym],
-#       is_done = s.is_done[sym],
-#       done_time = s.done_time[sym],
-#       prev_operation = s.prev_operation,
-#       prev_machine = s.prev_machine,
-#     ), sym)
-#     for sym in SYMMETRIES]
-# end
 
 #####
 ##### Interaction APIc
 #####
 
-function GI.action_string(::GameSpec, o)
-  mn = i2mn(o)
+function GI.action_string(spec::GameSpec, o)
+  mn = i2mn(o, spec.M, spec.N)
   return string("job: ", mn[2], " machine: ", mn[1])
 end
 
-function GI.parse_action(::GameSpec, str)
+function GI.parse_action(spec::GameSpec, str)
   try
     s = split(str)
     @assert length(s) == 2
     n = parse(Int, s[1])
     m = parse(Int, s[2])
-    return mn2i(m,n)
+    return mn2i(m,n, spec.M, spec.N)
   catch e
     return nothing
   end
@@ -240,12 +239,12 @@ end
 
 
 function GI.render(g::GameEnv) 
-  for (m,o) in enumerate(g.disj_tar[S:end])
+  for (m,o) in enumerate(g.disj_tar[g.S:end])
     print(crayon"white", "m", m, ":")
-    o == S && (println(); continue)
+    o == g.S && (println(); continue)
     last_op = 0
     while(true)
-      mn = i2mn(o)
+      mn = i2mn(o, g.M, g.N)
       idle = (crayon"dark_gray", repeat("-", g.done_time[o] - (last_op + g.process_time[o])))
       active = (Crayon(foreground = mn[2]), repeat("=", g.process_time[o]))
       print(idle..., active...)
@@ -258,5 +257,5 @@ function GI.render(g::GameEnv)
   for n in 1:N
     print(Crayon(foreground = n), "n", n, " ")
   end
-  println()
+  println(crayon"reset")
 end

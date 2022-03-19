@@ -60,4 +60,4 @@ benchmark = [
     benchmark_sim)]
 
 experiment = Experiment(
-  "jsp", GameSpec(), params, Network, netparams, benchmark)
+  "jsp", GameSpec(4, 4), params, Network, netparams, benchmark)

@@ -22,7 +22,7 @@ module Examples
     "tictactoe" => Tictactoe.GameSpec(),
     "connect-four" => ConnectFour.GameSpec(),
     "mancala" => Mancala.GameSpec(),
-    "jsp" => JSP.GameSpec())
+    "jsp" => JSP.Training.experiment.gspec)
     # "ospiel_ttt" => OSpielTictactoe.GameSpec()
   # ospiel_ttt is added from openspiel_example.jl when OpenSpiel.jl is imported
 
