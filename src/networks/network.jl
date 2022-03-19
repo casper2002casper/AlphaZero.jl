@@ -147,6 +147,13 @@ Return the collection of trainable parameters of a network.
 function params end
 
 """
+    set_params(::AbstractNetwork)
+
+Set trainable parameters of a network.
+"""
+function set_params! end
+
+"""
     gc(::AbstractNetwork)
 
 Perform full garbage collection and empty the GPU memory pool.
