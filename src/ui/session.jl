@@ -292,11 +292,7 @@ function Session(
     env = load_env(dir, e)
     # The parameters must be unchanged
     same_json(x, y) = JSON3.write(x) == JSON3.write(y)
-    if(!same_json(env.params, e.params))
-      @info "Modified parameters detected, use new parameters? [y/n]"
-      answer = readline()
-      answer == "y" && (env.params = e.params)
-    end
+    same_json(env.params, e.params) || @info "Using modified parameters"
     @assert same_json(Network.hyperparams(env.bestnn), e.netparams)
     session = Session(env, dir, logger, autosave, save_intermediate, e.benchmark)
     session.report = load_session_report(dir, env.itc)
