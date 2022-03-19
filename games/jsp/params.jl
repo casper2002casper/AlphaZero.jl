@@ -4,9 +4,7 @@ netparams = NetLib.GinHP()
 
 self_play = SelfPlayParams(
   sim=SimParams(
-    num_games=1500,
-    num_workers=128,
-    batch_size=32,
+    num_games=128,
     num_workers=128,
     batch_size=32,
     use_gpu=true,
@@ -48,9 +46,9 @@ params = Params(
 
 benchmark_sim = SimParams(
   self_play.sim;
-  num_games=24,
-  num_workers=24,
-  batch_size=12,
+  num_games=128,
+  num_workers=128,
+  batch_size=32,
   deterministic = true)
 
 benchmark = [
