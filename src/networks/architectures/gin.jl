@@ -48,7 +48,7 @@ function Gin(gspec::AbstractGameSpec, hyper::GinHP)
   common = GNNChain(GIN_layers(indim, hyper.hidden_size, 3)...)
   vhead = GNNChain(GlobalPool(mean),  
                    Dense_layers(hyper.hidden_size, 2)...,
-                   Dense(hyper.hidden_size, 1, tanh))
+                   Dense(hyper.hidden_size, 1, identity))
   phead = GNNChain(Parallel(vcat, GNNChain(GlobalPool(mean), x -> repeat(x, 1, n_nodes)), identity), 
                    GIN_layers(2*hyper.hidden_size, 32, 2)...,
                    Dense(32, 1),
