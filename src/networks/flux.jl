@@ -67,9 +67,9 @@ Network.convert_input(nn::FluxNetwork, x) =
 
 Network.convert_output(nn::FluxNetwork, x) = Flux.cpu(x)
 
-Network.params(nn::FluxNetwork) = Flux.params(nn)
+Network.params(nn::FluxNetwork) = [Flux.params(nn)]
 
-Network.set_params!(nn::FluxNetwork, weights) = Flux.loadparams!(nn, weights)
+Network.set_params!(nn::FluxNetwork, weights) = Flux.loadparams!(nn, weights[1])
 
 # This should be included in Flux
 function lossgrads(f, args...)
@@ -147,10 +147,10 @@ abstract type TwoHeadNetwork <: FluxNetwork end
 
 abstract type TwoHeadGraphNeuralNetwork <: TwoHeadNetwork end
 
-Network.params(nn::TwoHeadNetwork) = [Flux.params(nn.head), Flux.params(nn.vhead), Flux.params(nn.phead)]
+Network.params(nn::TwoHeadNetwork) = [Flux.params(nn.common), Flux.params(nn.vhead), Flux.params(nn.phead)]
 
 function Network.set_params!(nn::TwoHeadNetwork, weights) 
-  Flux.loadparams!(nn.head,  weights[1])
+  Flux.loadparams!(nn.common,weights[1])
   Flux.loadparams!(nn.vhead, weights[2])
   Flux.loadparams!(nn.phead, weights[3])
 end

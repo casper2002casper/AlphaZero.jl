@@ -221,7 +221,7 @@ function train! end
 Return the total number of parameters of a network.
 """
 function num_parameters(nn::AbstractNetwork)
-  return sum(length(p) for p in params(nn))
+  return sum(length(p) for net in params(nn) for p in net)
 end
 
 """
