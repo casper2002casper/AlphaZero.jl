@@ -3,15 +3,6 @@ using GraphNeuralNetworks
 using Random 
 using Crayons
 
-# const M = 5 #num machines
-# const N = 5 #num jobs
-const P_MIN = 1#min time
-const P_MAX = 5#max time
-
-# const N_NODES = M*N
-# const T = M*N+1 #[nodes, T, S]
-# const S = M*N+2 
-
 
 i2mn(i, M, N) = CartesianIndices((M,N))[i]
 mn2i(m, n, M, N) = LinearIndices((M,N))[m,n]
@@ -19,6 +10,8 @@ mn2i(m, n, M, N) = LinearIndices((M,N))[m,n]
 struct GameSpec <: GI.AbstractGameSpec 
   M::UInt8
   N::UInt8
+  P_MIN::UInt8
+  P_MAX::UInt8
 end
 
 function generate_conjuctive_edges(rng::AbstractRNG, M, N, N_NODES, T, S)
@@ -81,7 +74,7 @@ function GI.init(spec::GameSpec, rng::AbstractRNG)
   N_NODES = M*N #[nodes, T, S]
   T = M*N+1 
   S = M*N+2 
-  p_time = [rand(rng, P_MIN:P_MAX,N_NODES); 0; 0] #Nodes time plus t, s = 0
+  p_time = [rand(rng, spec.P_MIN:spec.P_MAX, N_NODES); 0; 0] #Nodes time plus t, s = 0
   conj_tar = generate_conjuctive_edges(rng, M, N, N_NODES, T, S)
   start_edges_n = collect(0:N-1) .+ S
   start_edges_m = collect(0:M-1) .+ S
@@ -117,7 +110,7 @@ GI.init(spec::GameSpec, s) = GameEnv(
   s.N,
   s.N_NODES,
   s.T,
-  spec.M * spec.N + 2,
+  s.S,
   # s.UB,
   # s.LB,
   #Mutable values
@@ -129,7 +122,7 @@ GI.init(spec::GameSpec, s) = GameEnv(
   copy(s.prev_machine),
 )
 
-GI.spec(g::GameEnv) = GameSpec(g.M,g.N)
+GI.spec(g::GameEnv) = GameSpec(g.M, g.N, 1, 5)
 
 GI.two_players(::GameSpec) = false
 
