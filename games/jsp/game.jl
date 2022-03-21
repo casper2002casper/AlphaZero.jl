@@ -151,7 +151,7 @@ GI.current_state(g::GameEnv) = (
 
 GI.white_playing(g::GameEnv) = true
 
-GI.game_terminated(g::GameEnv) = all(g.is_done)
+GI.game_terminated(g::GameEnv) = all(g.conj_tar[g.prev_operation].==g.T)
 
 GI.actions(spec::GameSpec) = collect(1:(spec.M*spec.N+2)) 
 
@@ -173,7 +173,7 @@ function GI.play!(g::GameEnv, o)
   g.prev_machine[mn[1]] = o
   g.prev_operation[mn[2]] = o
   #determine if all opperations are done
-  all(g.conj_tar[g.prev_operation].==g.T) && (g.is_done[g.T] = true)
+  GI.game_terminated(g) && (g.is_done[g.T] = true)
   #add disjunctive link
   g.disj_tar[k] = o
   #convert from edge to node notation
