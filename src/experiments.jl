@@ -32,4 +32,6 @@ A structure that contains the information necessary to replicate a training sess
   benchmark :: Vector{<:Benchmark.Evaluation}
 end
 
+Util.generate_update_constructor(Experiment) |> eval
+
 end
