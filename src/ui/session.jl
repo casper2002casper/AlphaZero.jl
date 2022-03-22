@@ -278,7 +278,8 @@ function overwrite_experiment(e::Experiment, sim_num_games, sim_num_workers, sim
             benchmark = [(typeof(bench)(bench, sim = SimParams(bench.sim,
                                                                 num_games = bench_num_games,
                                                                 num_workers = bench_num_workers,
-                                                                batch_size = bench_batch_size))
+                                                                batch_size = bench_batch_size,
+                                                                use_gpu = use_gpu))
                           ) for bench in e.benchmark])
 end
 """
