@@ -12,6 +12,8 @@ using Statistics: mean
 
 import Flux  # we use Flux.batch
 import GraphNeuralNetworks
+
+using CUDA
 """
     AbstractNetwork
 
@@ -322,6 +324,9 @@ function evaluate_batch(nn::AbstractNetwork, batch)
   gspec = game_spec(nn)
   X = Flux.batch([GI.vectorize_state(gspec, b) for b in batch])
   A = Flux.batch([GI.actions_mask(GI.init(gspec, b)) for b in batch])
+  #@show Base.summarysize(X)
+  #@show Base.summarysize(A)
+  CUDA.memory_status()
   Xnet, Anet = convert_input_tuple(nn, (X, Float32.(A)))
   P, V, _ = convert_output_tuple(nn, forward_normalized(nn, Xnet, Anet))
   return [(P[A[:,i],i], V[1,i]) for i in eachindex(batch)]

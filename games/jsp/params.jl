@@ -4,15 +4,15 @@ netparams = NetLib.GinHP()
 
 self_play = SelfPlayParams(
   sim=SimParams(
-    num_games=2000,
-    num_workers=256,
-    batch_size=128,
+    num_games=1024,
+    num_workers=512,
+    batch_size=256,
     use_gpu=true,
     reset_every=1,
     flip_probability=0.,
     alternate_colors=false),
   mcts=MctsParams(
-    num_iters_per_turn=1600,
+    num_iters_per_turn=100,
     cpuct=0.8,
     adaptive_cpuct = true,
     temperature=ConstSchedule(0.05),
@@ -46,9 +46,9 @@ params = Params(
 
 benchmark_sim = SimParams(
   self_play.sim;
-  num_games=32,
-  num_workers=32,
-  batch_size=16,
+  num_games=5,
+  num_workers=1,
+  batch_size=1,
   deterministic = true)
 
 benchmark = [
@@ -60,4 +60,4 @@ benchmark = [
     benchmark_sim)]
 
 experiment = Experiment(
-  "jsp", GameSpec(6, 6, 1, 5), params, Network, netparams, benchmark)
+  "jsp", GameSpec(4, 4, 1, 5), params, Network, netparams, benchmark)
