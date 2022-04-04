@@ -71,10 +71,6 @@ function (r::RandomOracle)(state)
   return P, V
 end
 
-mutable struct NormStats
-  use_normalization :: Bool
-  factor :: Float64
-end  
 
 #####
 ##### State Statistics
@@ -205,10 +201,6 @@ end
 # Return the estimated Q-value for the current player.
 # Modifies the state of the game environment.
 function run_simulation!(env::Env, game; η, root=true)
-  if env.adaptive_cpuct && isempty(env.tree)
-    (_, V) = env.oracle(GI.current_state(game))
-    env.scaled_cpuct = env.cpuct * abs(V)
-  end
   if GI.game_terminated(game)
     return 0.
   else
@@ -250,6 +242,10 @@ Run `nsims` MCTS simulations from the current state.
 """
 function explore!(env::Env, game, nsims)
   η = dirichlet_noise(game, env.noise_α)
+  if env.adaptive_cpuct
+    (_, V) = env.oracle(GI.current_state(game))
+    env.scaled_cpuct = env.cpuct * abs(V)
+  end
   for i in 1:nsims
     env.total_simulations += 1
     run_simulation!(env, GI.clone(game), η=η)
