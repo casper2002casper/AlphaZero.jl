@@ -1,6 +1,7 @@
 #####
 ##### Session management
 #####
+using Setfield
 
 const DEFAULT_SESSIONS_DIR = "sessions"
 
@@ -262,26 +263,6 @@ function session_logger(dir, nostdout, autosave)
   return Logger(out, logfile=logfile)
 end
 
-function overwrite_experiment(e::Experiment, sim_num_games, sim_num_workers, sim_batch_size, use_gpu, mcts_iters, mcts_cpuct, bench_num_games, bench_num_workers, bench_batch_size)
-  Experiment(e, 
-            params = Params(e.params, 
-                            self_play = SelfPlayParams(sim = SimParams(e.params.self_play.sim,
-                                                                        num_games = sim_num_games,
-                                                                        num_workers = sim_num_workers,
-                                                                        batch_size = sim_batch_size,
-                                                                        use_gpu = use_gpu),
-                                                      mcts = MctsParams(e.params.self_play.mcts,
-                                                                        num_iters_per_turn = mcts_iters,
-                                                                        cpuct = mcts_cpuct)),
-                            learning = LearningParams(e.params.learning,
-                                                      use_gpu = use_gpu)),
-            benchmark = [(typeof(bench)(bench, sim = SimParams(bench.sim,
-                                                                num_games = bench_num_games,
-                                                                num_workers = bench_num_workers,
-                                                                batch_size = bench_batch_size,
-                                                                use_gpu = use_gpu))
-                          ) for bench in e.benchmark])
-end
 """
     Session(::Experiment; <optional kwargs>)
 
@@ -307,7 +288,7 @@ function Session(
     sim_num_games = e.params.self_play.sim.num_games,
     sim_num_workers = e.params.self_play.sim.num_workers,
     sim_batch_size = e.params.self_play.sim.batch_size,
-    use_gpu = e.self_play.sim.use_gpu,
+    use_gpu = e.params.self_play.sim.use_gpu,
     mcts_iters = e.params.self_play.mcts.num_iters_per_turn,
     mcts_cpuct = e.params.self_play.mcts.cpuct,
     bench_num_games = e.benchmark[1].sim.num_games,
@@ -326,7 +307,20 @@ function Session(
     session = Session(env, dir, logger, autosave, save_intermediate, e.benchmark)
     session.report = load_session_report(dir, env.itc)
   else
-    e = overwrite_experiment(e, sim_num_games, sim_num_workers, sim_batch_size, use_gpu, mcts_iters, mcts_cpuct, bench_num_games, bench_num_workers, bench_batch_size)
+    e = @set e.params.self_play.sim.num_games = sim_num_games
+    e = @set e.params.self_play.sim.num_workers = sim_num_workers
+    e = @set e.params.self_play.sim.batch_size = sim_batch_size
+    e = @set e.params.self_play.sim.use_gpu = use_gpu
+    e = @set e.params.learning.use_gpu = use_gpu
+    e = @set e.params.self_play.mcts.num_iters_per_turn = mcts_iters
+    e = @set e.params.self_play.mcts.cpuct = mcts_cpuct
+    benchs =  Vector{Benchmark.Evaluation}()
+    for bench in e.benchmark
+      bench = @set bench.sim.num_games = bench_num_games
+      bench = @set bench.sim.num_workers = bench_num_workers
+      bench = @set bench.sim.batch_size = bench_batch_size
+      push!(benchs, bench)
+    end
     network = e.mknet(e.gspec, e.netparams)
     env = Env(e.gspec, e.params, network)
     session = Session(env, dir, logger, autosave, save_intermediate, e.benchmark)
