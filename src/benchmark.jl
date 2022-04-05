@@ -50,8 +50,6 @@ Evaluating a single player in a one-player game.
   sim :: SimParams
 end
 
-Util.generate_update_constructor(Single) |> eval
-
 """
     Duel <: Evaluation
 
@@ -62,8 +60,6 @@ Evaluating a player by pitting it against a baseline player in a two-player game
   baseline :: Player
   sim :: SimParams
 end
-
-Util.generate_update_constructor(Duel) |> eval
 
 name(s::Single) = name(s.player)
 
