@@ -1,6 +1,7 @@
 #####
 ##### Session management
 #####
+using Setfield
 
 const DEFAULT_SESSIONS_DIR = "sessions"
 
@@ -99,19 +100,27 @@ function save_env(env::Env, dir)
   open(joinpath(dir, NET_PARAMS_FILE), "w") do io
     JSON3.pretty(io, JSON3.write(Network.hyperparams(env.bestnn)))
   end
-  serialize(joinpath(dir, BESTNN_FILE), env.bestnn)
-  serialize(joinpath(dir, CURNN_FILE), env.curnn)
+  serialize(joinpath(dir, BESTNN_FILE), Network.params(env.bestnn))
+  serialize(joinpath(dir, CURNN_FILE), Network.params(env.curnn))
   serialize(joinpath(dir, MEM_FILE), get_experience(env))
   open(joinpath(dir, ITC_FILE), "w") do io
     JSON3.write(io, env.itc)
   end
 end
 
-function load_env(dir)
+function load_nn(location, e::Experiment)
+  nn = e.mknet(e.gspec, e.netparams)
+  params = deserialize(location)
+  Network.set_params!(nn, params)
+  return nn
+end
+
+function load_env(dir , e::Experiment)
   gspec = deserialize(joinpath(dir, GSPEC_FILE))
   params = deserialize(joinpath(dir, PARAMS_FILE))
-  curnn = deserialize(joinpath(dir, CURNN_FILE))
-  bestnn = deserialize(joinpath(dir, BESTNN_FILE))
+  
+  curnn = load_nn(joinpath(dir, CURNN_FILE), e)
+  bestnn = load_nn(joinpath(dir, BESTNN_FILE), e)
   experience = deserialize(joinpath(dir, MEM_FILE))
   itc = open(JSON3.read, joinpath(dir, ITC_FILE), "r") 
   return Env(gspec, params, curnn, bestnn, experience, itc)
@@ -275,13 +284,22 @@ function Session(
     dir=nothing,
     autosave=true,
     nostdout=false,
-    save_intermediate=false)
-  
+    save_intermediate=false,
+    sim_num_games = e.params.self_play.sim.num_games,
+    sim_num_workers = e.params.self_play.sim.num_workers,
+    sim_batch_size = e.params.self_play.sim.batch_size,
+    use_gpu = e.params.self_play.sim.use_gpu,
+    mcts_iters = e.params.self_play.mcts.num_iters_per_turn,
+    mcts_cpuct = e.params.self_play.mcts.cpuct,
+    bench_num_games = e.benchmark[1].sim.num_games,
+    bench_num_workers = e.benchmark[1].sim.num_workers,
+    bench_batch_size = e.benchmark[1].sim.batch_size)
+    
   isnothing(dir) && (dir = default_session_dir(e))
   logger = session_logger(dir, nostdout, autosave)
   if valid_session_dir(dir)
     Log.section(logger, 1, "Loading environment from: $dir")
-    env = load_env(dir)
+    env = load_env(dir, e)
     # The parameters must be unchanged
     same_json(x, y) = JSON3.write(x) == JSON3.write(y)
     same_json(env.params, e.params) || @info "Using modified parameters"
@@ -289,6 +307,20 @@ function Session(
     session = Session(env, dir, logger, autosave, save_intermediate, e.benchmark)
     session.report = load_session_report(dir, env.itc)
   else
+    e = @set e.params.self_play.sim.num_games = sim_num_games
+    e = @set e.params.self_play.sim.num_workers = sim_num_workers
+    e = @set e.params.self_play.sim.batch_size = sim_batch_size
+    e = @set e.params.self_play.sim.use_gpu = use_gpu
+    e = @set e.params.learning.use_gpu = use_gpu
+    e = @set e.params.self_play.mcts.num_iters_per_turn = mcts_iters
+    e = @set e.params.self_play.mcts.cpuct = mcts_cpuct
+    benchs =  Vector{Benchmark.Evaluation}()
+    for bench in e.benchmark
+      bench = @set bench.sim.num_games = bench_num_games
+      bench = @set bench.sim.num_workers = bench_num_workers
+      bench = @set bench.sim.batch_size = bench_batch_size
+      push!(benchs, bench)
+    end
     network = e.mknet(e.gspec, e.netparams)
     env = Env(e.gspec, e.params, network)
     session = Session(env, dir, logger, autosave, save_intermediate, e.benchmark)

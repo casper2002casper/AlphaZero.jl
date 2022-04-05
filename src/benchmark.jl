@@ -12,6 +12,7 @@ using ..AlphaZero
 using ProgressMeter
 using Statistics: mean
 using Base: @kwdef
+using Random
 
 """
     Benchmark.Player
@@ -48,7 +49,6 @@ Evaluating a single player in a one-player game.
   player :: Player
   sim :: SimParams
 end
-
 
 """
     Duel <: Evaluation

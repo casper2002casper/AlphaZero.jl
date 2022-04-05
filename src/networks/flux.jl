@@ -4,14 +4,16 @@ along with a library of standard architectures.
 """
 module FluxLib
 
-export SimpleNet, SimpleNetHP, ResNet, ResNetHP
+export SimpleNet, SimpleNetHP, ResNet, ResNetHP, Gcn, GcnHP, Gin, GinHP
 
 using ..AlphaZero
 
 using CUDA
 using Base: @kwdef
+#using Statistics: var
 
 import Flux
+import GraphNeuralNetworks
 
 CUDA.allowscalar(false)
 array_on_gpu(::Array) = false
@@ -19,7 +21,8 @@ array_on_gpu(::CuArray) = true
 array_on_gpu(arr) = error("Usupported array type: ", typeof(arr))
 
 using Flux: relu, softmax, flatten
-using Flux: Chain, Dense, Conv, BatchNorm, SkipConnection
+using Flux: Chain, Dense, Conv, BatchNorm, SkipConnection, Parallel
+using GraphNeuralNetworks: GCNConv
 import Zygote
 
 #####
@@ -64,7 +67,9 @@ Network.convert_input(nn::FluxNetwork, x) =
 
 Network.convert_output(nn::FluxNetwork, x) = Flux.cpu(x)
 
-Network.params(nn::FluxNetwork) = Flux.params(nn)
+Network.params(nn::FluxNetwork) = [Flux.params(nn)]
+
+Network.set_params!(nn::FluxNetwork, weights) = Flux.loadparams!(nn, weights[1])
 
 # This should be included in Flux
 function lossgrads(f, args...)
@@ -77,6 +82,7 @@ function Network.train!(callback, nn::FluxNetwork, opt::Adam, loss, data, n)
   optimiser = Flux.ADAM(opt.lr)
   params = Flux.params(nn)
   for (i, d) in enumerate(data)
+    d = Network.convert_input_tuple(nn, d)
     l, grads = lossgrads(params) do
       loss(d...)
     end
@@ -109,6 +115,7 @@ function Network.train!(
 end
 
 regularized_params_(l) = []
+regularized_params_(l::GraphNeuralNetworks.GCNConv) = [l.weight]
 regularized_params_(l::Flux.Dense) = [l.weight]
 regularized_params_(l::Flux.Conv) = [l.weight]
 
@@ -138,6 +145,23 @@ is provided for [`Network.hyperparams`](@ref), [`Network.game_spec`](@ref),
 """
 abstract type TwoHeadNetwork <: FluxNetwork end
 
+abstract type TwoHeadGraphNeuralNetwork <: TwoHeadNetwork end
+
+Network.params(nn::TwoHeadNetwork) = [Flux.params(nn.common), Flux.params(nn.vhead), Flux.params(nn.phead)]
+
+function Network.set_params!(nn::TwoHeadNetwork, weights) 
+  Flux.loadparams!(nn.common,weights[1])
+  Flux.loadparams!(nn.vhead, weights[2])
+  Flux.loadparams!(nn.phead, weights[3])
+end
+
+function Network.forward(nn::TwoHeadGraphNeuralNetwork, state)
+  c = nn.common(state)
+  v = nn.vhead(c, c.ndata.x)
+  p = nn.phead(c, c.ndata.x)
+  return (p, v)
+end
+
 function Network.forward(nn::TwoHeadNetwork, state)
   c = nn.common(state)
   v = nn.vhead(c)
@@ -164,5 +188,6 @@ Network.on_gpu(nn::TwoHeadNetwork) = array_on_gpu(nn.vhead[end].bias)
 
 include("architectures/simplenet.jl")
 include("architectures/resnet.jl")
-
+include("architectures/gcn.jl")
+include("architectures/gin.jl")
 end

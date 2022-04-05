@@ -2,7 +2,7 @@ Network = NetLib.SimpleNet
 
 netparams = NetLib.SimpleNetHP(
   width=100,
-  depth_common=4,
+  depth_common=3*16,
   use_batch_norm=false)
 
 self_play = SelfPlayParams(
@@ -10,7 +10,7 @@ self_play = SelfPlayParams(
     num_games=1000,
     num_workers=4,
     batch_size=4,
-    use_gpu=false,
+    use_gpu=true,
     reset_every=16,
     flip_probability=0.,
     alternate_colors=false),
@@ -26,7 +26,7 @@ arena = ArenaParams(
     num_games=100,
     num_workers=10,
     batch_size=10,
-    use_gpu=false,
+    use_gpu=true,
     reset_every=1,
     flip_probability=0.,
     alternate_colors=true),
@@ -37,7 +37,6 @@ learning = LearningParams(
   use_gpu=false,
   use_position_averaging=false,
   samples_weighing_policy=CONSTANT_WEIGHT,
-  rewards_renormalization=10,
   l2_regularization=1e-4,
   optimiser=Adam(lr=5e-3),
   batch_size=64,
@@ -59,9 +58,9 @@ params = Params(
 
 benchmark_sim = SimParams(
   arena.sim;
-  num_games=500,
-  num_workers=10,
-  batch_size=10)
+  num_games=10,
+  num_workers=1,
+  batch_size=1)
 
 benchmark = [
   Benchmark.Single(

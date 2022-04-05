@@ -205,6 +205,7 @@ function learning_step!(env::Env, handler)
     return dummy_learning_report()
   end
   trainer, tconvert = @timed Trainer(env.gspec, env.curnn, experience, lp)
+  @show tconvert
   init_status = learning_status(trainer)
   status = init_status
   Handlers.learning_started(handler)
@@ -222,7 +223,9 @@ function learning_step!(env::Env, handler)
     # Execute a series of batch updates
     Handlers.updates_started(handler, status)
     dlosses, dttrain = @timed batch_updates!(trainer, nbatches)
+    @show dttrain
     status, dtloss = @timed learning_status(trainer)
+    @show dtloss
     Handlers.updates_finished(handler, status)
     tloss += dtloss
     ttrain += dttrain

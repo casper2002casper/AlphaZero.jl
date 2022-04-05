@@ -1,7 +1,8 @@
+using Random
 #####
 ##### Interface for players
 #####
-
+using Random: AbstractRNG, GLOBAL_RNG
 """
     AbstractPlayer
 
@@ -173,7 +174,8 @@ function MctsPlayer(
     cpuct=params.cpuct,
     noise_ϵ=params.dirichlet_noise_ϵ,
     noise_α=params.dirichlet_noise_α,
-    prior_temperature=params.prior_temperature)
+    prior_temperature=params.prior_temperature,
+    adaptive_cpuct=params.adaptive_cpuct)
   return MctsPlayer(mcts,
     niters=params.num_iters_per_turn,
     τ=params.temperature,
@@ -187,7 +189,8 @@ function RandomMctsPlayer(game_spec::AbstractGameSpec, params::MctsParams)
     cpuct=params.cpuct,
     gamma=params.gamma,
     noise_ϵ=params.dirichlet_noise_ϵ,
-    noise_α=params.dirichlet_noise_α)
+    noise_α=params.dirichlet_noise_α,
+    adaptive_cpuct=params.adaptive_cpuct)
   return MctsPlayer(mcts,
     niters=params.num_iters_per_turn,
     τ=params.temperature)
@@ -295,8 +298,8 @@ Simulate a game by an [`AbstractPlayer`](@ref).
   is _flipped_ randomly at every turn with probability ``p``,
   using [`GI.apply_random_symmetry!`](@ref).
 """
-function play_game(gspec, player; flip_probability=0.)
-  game = GI.init(gspec)
+function play_game(gspec, player; flip_probability=0., rng::AbstractRNG=Random.GLOBAL_RNG)
+  game = GI.init(gspec, rng)
   trace = Trace(GI.current_state(game))
   while true
     if GI.game_terminated(game)

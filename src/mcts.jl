@@ -71,6 +71,7 @@ function (r::RandomOracle)(state)
   return P, V
 end
 
+
 #####
 ##### State Statistics
 #####
@@ -129,6 +130,8 @@ mutable struct Env{State, Oracle}
   # Parameters
   gamma :: Float64 # Discount factor
   cpuct :: Float64
+  adaptive_cpuct :: Bool
+  scaled_cpuct :: Float64
   noise_ϵ :: Float64
   noise_α :: Float64
   prior_temperature :: Float64
@@ -139,13 +142,13 @@ mutable struct Env{State, Oracle}
   gspec :: GI.AbstractGameSpec
 
   function Env(gspec, oracle;
-      gamma=1., cpuct=1., noise_ϵ=0., noise_α=1., prior_temperature=1.)
+      gamma=1., cpuct=1., noise_ϵ=0., noise_α=1., prior_temperature=1., adaptive_cpuct=false)
     S = GI.state_type(gspec)
     tree = Dict{S, StateInfo}()
     total_simulations = 0
     total_nodes_traversed = 0
     new{S, typeof(oracle)}(
-      tree, oracle, gamma, cpuct, noise_ϵ, noise_α, prior_temperature,
+      tree, oracle, gamma, cpuct, adaptive_cpuct, cpuct, noise_ϵ, noise_α, prior_temperature,
       total_simulations, total_nodes_traversed, gspec)
   end
 end
@@ -163,8 +166,9 @@ end
 # Returns statistics for the current player, along with a boolean indicating
 # whether or not a new node has been created.
 function state_info(env, state)
-  if haskey(env.tree, state)
-    return (env.tree[state], false)
+  info = get(env.tree, state, nothing)
+  if !isnothing(info)
+    return (info, false)
   else
     (P, V) = env.oracle(state)
     info = init_state_info(P, V, env.prior_temperature)
@@ -207,7 +211,7 @@ function run_simulation!(env::Env, game; η, root=true)
       return info.Vest
     else
       ϵ = root ? env.noise_ϵ : 0.
-      scores = uct_scores(info, env.cpuct, ϵ, η)
+      scores = uct_scores(info, env.scaled_cpuct, ϵ, η)
       action_id = argmax(scores)
       action = actions[action_id]
       wp = GI.white_playing(game)
@@ -238,6 +242,10 @@ Run `nsims` MCTS simulations from the current state.
 """
 function explore!(env::Env, game, nsims)
   η = dirichlet_noise(game, env.noise_α)
+  if env.adaptive_cpuct
+    (_, V) = env.oracle(GI.current_state(game))
+    env.scaled_cpuct = env.cpuct * abs(V)
+  end
   for i in 1:nsims
     env.total_simulations += 1
     run_simulation!(env, GI.clone(game), η=η)

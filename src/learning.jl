@@ -38,15 +38,21 @@ end
 function convert_samples(
     gspec::AbstractGameSpec,
     wp::SamplesWeighingPolicy,
-    es::Vector{<:TrainingSample})
-
+    es::AbstractVector{<:TrainingSample})
+    
   ces = [convert_sample(gspec, wp, e) for e in es]
-  W = Flux.batch((e.w for e in ces))
-  X = Flux.batch((e.x for e in ces))
-  A = Flux.batch((e.a for e in ces))
-  P = Flux.batch((e.p for e in ces))
-  V = Flux.batch((e.v for e in ces))
-  f32(arr) = convert(AbstractArray{Float32}, arr)
+  W = Flux.batch([e.w for e in ces])
+  X = typeof(ces[1].x) <: Matrix ? Flux.batch([e.x for e in ces]) : [e.x for e in ces] 
+  A = Flux.batch([e.a for e in ces])
+  P = Flux.batch([e.p for e in ces])
+  V = Flux.batch([e.v for e in ces])
+  function f32(arr)
+    if typeof(arr) <: Matrix
+      return convert(AbstractArray{Float32}, arr)
+    else
+      return arr
+    end
+  end
   return map(f32, (; W, X, A, P, V))
 end
 
@@ -68,9 +74,10 @@ function losses(nn, regws, params, Wmean, Hp, (W, X, A, P, V))
   # `regws` must be equal to `Network.regularized_params(nn)`
   creg = params.l2_regularization
   cinv = params.nonvalidity_penalty
+  renorm = params.rewards_renormalization
   P̂, V̂, p_invalid = Network.forward_normalized(nn, X, A)
-  V = V ./ params.rewards_renormalization
-  V̂ = V̂ ./ params.rewards_renormalization
+  V = isone(renorm) ? V : V ./ renorm
+  V̂ = isone(renorm) ? V̂ : V̂ ./ renorm
   Lp = klloss_wmean(P̂, P, W) - Hp
   Lv = mse_wmean(V̂, V, W)
   Lreg = iszero(creg) ?
@@ -89,12 +96,11 @@ end
 
 struct Trainer
   network :: AbstractNetwork
-  samples :: Vector{<:TrainingSample}
+  samples :: AbstractVector{<:TrainingSample}
   params :: LearningParams
-  data :: NamedTuple # (W, X, A, P, V) tuple obtained after converting `samples`
+  dataloader :: Flux.Data.DataLoader # (W, X, A, P, V) tuple obtained after converting `samples`
   Wmean :: Float32
   Hp :: Float32
-  batches_stream # infinite stateful iterator of training batches
   function Trainer(gspec, network, samples, params; test_mode=false)
     if params.use_position_averaging
       samples = merge_by_state(samples)
@@ -106,19 +112,16 @@ struct Trainer
     Hp = entropy_wmean(P, W)
     # Create a batches stream
     batchsize = min(params.batch_size, length(W))
-    batches = Flux.Data.DataLoader(data; batchsize, partial=false, shuffle=true)
-    batches_stream = map(batches) do b
-      Network.convert_input_tuple(network, b)
-    end |> Util.cycle_iterator |> Iterators.Stateful
-    return new(network, samples, params, data, Wmean, Hp, batches_stream)
+    dataloader = Flux.Data.DataLoader(data; batchsize, partial=false, shuffle=true)
+    return new(network, samples, params, dataloader, Wmean, Hp) 
   end
 end
 
-data_weights(tr::Trainer) = tr.data.W
+data_weights(tr::Trainer) = tr.dataloader.data.W
 
 num_samples(tr::Trainer) = length(data_weights(tr))
 
-num_batches_total(tr::Trainer) = num_samples(tr) ÷ tr.params.batch_size
+num_batches_total(tr::Trainer) = length(tr.dataloader)
 
 function get_trained_network(tr::Trainer)
   return Network.copy(tr.network, on_gpu=false, test_mode=true)
@@ -127,9 +130,8 @@ end
 function batch_updates!(tr::Trainer, n)
   regws = Network.regularized_params(tr.network)
   L(batch...) = losses(tr.network, regws, tr.params, tr.Wmean, tr.Hp, batch)[1]
-  data = Iterators.take(tr.batches_stream, n)
   ls = Vector{Float32}()
-  Network.train!(tr.network, tr.params.optimiser, L, data, n) do i, l
+  Network.train!(tr.network, tr.params.optimiser, L, tr.dataloader, n) do i, l
     push!(ls, l)
   end
   Network.gc(tr.network)
@@ -154,6 +156,7 @@ end
 function learning_status(tr::Trainer, samples)
   # As done now, this is slighly inefficient as we solve the
   # same neural network inference problem twice
+  samples = Network.convert_input_tuple(tr.network, samples)
   W, X, A, P, V = samples
   regws = Network.regularized_params(tr.network)
   Ls = losses(tr.network, regws, tr.params, tr.Wmean, tr.Hp, samples)
@@ -166,12 +169,13 @@ end
 
 function learning_status(tr::Trainer)
   batchsize = min(tr.params.loss_computation_batch_size, num_samples(tr))
-  batches = Flux.Data.DataLoader(tr.data; batchsize, partial=true)
-  reports = map(batches) do batch
-    batch = Network.convert_input_tuple(tr.network, batch)
-    return learning_status(tr, batch)
+  batches = Flux.Data.DataLoader(tr.dataloader.data; batchsize, partial=true)
+  reports = []
+  ws = []
+  for batch in batches
+    push!(reports, learning_status(tr, batch))
+    push!(ws, sum(batch.W))
   end
-  ws = [sum(batch.W) for batch in batches]
   return mean_learning_status(reports, ws)
 end
 

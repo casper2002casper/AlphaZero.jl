@@ -78,6 +78,8 @@ Network.to_cpu(nn::KNetwork) = CUDA.functional() ? Knet.cpucopy(nn) : nn
 params_(x) = []
 params_(x::Knet.Param) = [x]
 Network.params(nn::KNetwork) = gather(params_, nn)
+Network.set_params!(nn::KNetwork, weights) = 0
+
 
 regularized_params_(x) = []
 regularized_params_(m::Dense) = [m.W]

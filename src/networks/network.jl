@@ -11,7 +11,9 @@ using Base: @kwdef
 using Statistics: mean
 
 import Flux  # we use Flux.batch
+import GraphNeuralNetworks
 
+using CUDA
 """
     AbstractNetwork
 
@@ -147,6 +149,13 @@ Return the collection of trainable parameters of a network.
 function params end
 
 """
+    set_params(::AbstractNetwork)
+
+Set trainable parameters of a network.
+"""
+function set_params! end
+
+"""
     gc(::AbstractNetwork)
 
 Perform full garbage collection and empty the GPU memory pool.
@@ -214,7 +223,7 @@ function train! end
 Return the total number of parameters of a network.
 """
 function num_parameters(nn::AbstractNetwork)
-  return sum(length(p) for p in params(nn))
+  return sum(length(p) for net in params(nn) for p in net)
 end
 
 """
@@ -269,9 +278,16 @@ function forward_normalized(nn::AbstractNetwork, state, actions_mask)
   return (p, v, p_invalid)
 end
 
-to_singletons(x) = reshape(x, size(x)..., 1)
-from_singletons(x) = reshape(x, size(x)[1:end-1])
-
+function to_singletons(x)
+  if typeof(x) <: Matrix
+    return reshape(x, size(x)..., 1)
+  else
+    return x
+  end
+end
+function from_singletons(x)
+  reshape(x, size(x)[1:end-1])
+end
 """
     evaluate(::AbstractNetwork, state)
 
@@ -306,8 +322,11 @@ MCTS oracle interface.
 """
 function evaluate_batch(nn::AbstractNetwork, batch)
   gspec = game_spec(nn)
-  X = Flux.batch((GI.vectorize_state(gspec, b) for b in batch))
-  A = Flux.batch((GI.actions_mask(GI.init(gspec, b)) for b in batch))
+  X = Flux.batch([GI.vectorize_state(gspec, b) for b in batch])
+  A = Flux.batch([GI.actions_mask(GI.init(gspec, b)) for b in batch])
+  #@show Base.summarysize(X)
+  #@show Base.summarysize(A)
+  CUDA.memory_status()
   Xnet, Anet = convert_input_tuple(nn, (X, Float32.(A)))
   P, V, _ = convert_output_tuple(nn, forward_normalized(nn, Xnet, Anet))
   return [(P[A[:,i],i], V[1,i]) for i in eachindex(batch)]

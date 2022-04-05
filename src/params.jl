@@ -49,6 +49,7 @@ In the original AlphaGo Zero paper:
 @kwdef struct MctsParams
   gamma :: Float64 = 1.
   cpuct :: Float64 = 1.
+  adaptive_cpuct :: Bool = false
   num_iters_per_turn :: Int
   temperature :: AbstractSchedule{Float64} = ConstSchedule(1.)
   dirichlet_noise_ϵ :: Float64
@@ -98,6 +99,7 @@ and benchmarking.
   reset_every :: Union{Nothing, Int} = 1
   flip_probability :: Float64 = 0.
   alternate_colors :: Bool = false
+  deterministic :: Bool = false
 end
 
 """
