@@ -4,7 +4,7 @@ along with a library of standard architectures.
 """
 module FluxLib
 
-export SimpleNet, SimpleNetHP, ResNet, ResNetHP, Gcn, GcnHP, Gin, GinHP
+export SimpleNet, SimpleNetHP, ResNet, ResNetHP, Gcn, GcnHP, Gin, GinHP, GraphSAGE, GraphSAGEHP
 
 using ..AlphaZero
 
@@ -22,7 +22,7 @@ array_on_gpu(arr) = error("Usupported array type: ", typeof(arr))
 
 using Flux: relu, softmax, flatten
 using Flux: Chain, Dense, Conv, BatchNorm, SkipConnection, Parallel
-using GraphNeuralNetworks: GCNConv
+using GraphNeuralNetworks: GCNConv, SAGEConv
 import Zygote
 
 #####
@@ -116,6 +116,7 @@ end
 
 regularized_params_(l) = []
 regularized_params_(l::GraphNeuralNetworks.GCNConv) = [l.weight]
+regularized_params_(l::GraphNeuralNetworks.SAGEConv) = [l.weight, l.bias]
 regularized_params_(l::Flux.Dense) = [l.weight]
 regularized_params_(l::Flux.Conv) = [l.weight]
 
@@ -190,4 +191,5 @@ include("architectures/simplenet.jl")
 include("architectures/resnet.jl")
 include("architectures/gcn.jl")
 include("architectures/gin.jl")
+include("architectures/graphSAGE.jl")
 end
