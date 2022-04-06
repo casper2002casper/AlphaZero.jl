@@ -115,7 +115,7 @@ function Network.train!(
 end
 
 regularized_params_(l) = []
-regularized_params_(l::GraphNeuralNetworks.GCNConv) = [l.weight]
+regularized_params_(l::GraphNeuralNetworks.GCNConv) = [l.weight, l.bias]
 regularized_params_(l::GraphNeuralNetworks.SAGEConv) = [l.weight, l.bias]
 regularized_params_(l::Flux.Dense) = [l.weight]
 regularized_params_(l::Flux.Conv) = [l.weight]
