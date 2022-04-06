@@ -4,17 +4,11 @@ using Statistics
 """
     GcnHP
 
-Hyperparameters for the gnn architecture.
+Hyperparameters for the gcn architecture.
 
-| Parameter                     | Description                                  |
-|:------------------------------|:---------------------------------------------|
-| `width :: Int`                | Number of neurons on each dense layer        |
-| `depth_common :: Int`         | Number of dense layers in the trunk          |
-| `depth_phead = 1`             | Number of hidden layers in the actions head  |
-| `depth_vhead = 1`             | Number of hidden layers in the value  head   |
-| `use_batch_norm = false`      | Use batch normalization between each layer   |
-| `batch_norm_momentum = 0.6f0` | Momentum of batch norm statistics updates    |
+
 """
+
 @kwdef struct GcnHP
   depth_common :: Int = 6
   depth_phead :: Int = 2
@@ -23,9 +17,9 @@ Hyperparameters for the gnn architecture.
 end
 
 """
-    Gin <: TwoHeadNetwork
+    Gin <: TwoHeadGraphNeuralNetwork
 
-A simple two-headed architecture with only dense layers.
+A simple two-headed GNN architecture with only dense layers.
 """
 mutable struct Gcn <: TwoHeadGraphNeuralNetwork
   gspec
@@ -43,7 +37,7 @@ function Gcn(gspec::AbstractGameSpec, hyper::GcnHP)
   common = GNNChain(GCN_layers(hyper.depth_common)..., BatchNorm(hyper.hidden_size))
   vhead = GNNChain(GlobalPool(mean),  
                    Dense_layers(hyper.hidden_size, hyper.depth_vhead)...,
-                   Dense(hyper.hidden_size, 1, relu))
+                   Dense(hyper.hidden_size, 1, identity))
   phead = GNNChain(Parallel(vcat, GNNChain(GlobalPool(mean), x -> repeat(x, 1, n_nodes)), identity),
                   Dense_layers(hyper.hidden_size*2, hyper.depth_phead)...,
                   Dense(hyper.hidden_size*2, 1),

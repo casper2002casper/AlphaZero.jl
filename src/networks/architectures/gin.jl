@@ -5,30 +5,20 @@ using Statistics
 """
     GinHP
 
-Hyperparameters for the gnn architecture.
+Hyperparameters for the gin architecture.
 
-| Parameter                     | Description                                  |
-|:------------------------------|:---------------------------------------------|
-| `width :: Int`                | Number of neurons on each dense layer        |
-| `depth_common :: Int`         | Number of dense layers in the trunk          |
-| `depth_phead = 1`             | Number of hidden layers in the actions head  |
-| `depth_vhead = 1`             | Number of hidden layers in the value  head   |
-| `use_batch_norm = false`      | Use batch normalization between each layer   |
-| `batch_norm_momentum = 0.6f0` | Momentum of batch norm statistics updates    |
 """
 @kwdef struct GinHP
   depth_common :: Int = 12
   depth_phead :: Int = 3
   depth_vhead :: Int = 3
   hidden_size :: Int = 64
-  use_batch_norm :: Bool = false
-  batch_norm_momentum :: Float32 = 0.6f0
 end
 
 """
-    Gin <: TwoHeadNetwork
+    Gin <: TwoHeadGraphNeuralNetwork
 
-A simple two-headed architecture with only dense layers.
+A simple two-headed GNN architecture with only dense layers.
 """
 mutable struct Gin <: TwoHeadGraphNeuralNetwork
   gspec
