@@ -24,6 +24,7 @@ struct SessionReport
 end
 
 function valid_session_report(r::SessionReport)
+  length(r.benchmark) == length(r.iterations) == 0 && return true
   if length(r.benchmark) == length(r.iterations) + 1
     nduels = length(r.benchmark[1])
     return all(length(b) == nduels for b in r.benchmark)
@@ -231,7 +232,9 @@ end
 
 # return whether or not critical problems were found
 function zeroth_iteration!(session::Session)
-  @assert session.env.itc == 0
+  save(session, session.dir)
+  session.save_intermediate && save(session, idir)
+  session.env.itc = 0
   Log.section(session.logger, 2, "Initial report")
   report = initial_report(session.env)
   print_report(session.logger, report)

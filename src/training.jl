@@ -33,7 +33,7 @@ mutable struct Env{GameSpec, Network, State}
   itc    :: Int
   function Env(
       gspec::AbstractGameSpec,
-      params, curnn, bestnn=copy(curnn), experience=[], itc=0)
+      params, curnn, bestnn=copy(curnn), experience=[], itc=-1)
     msize = max(params.mem_buffer_size[itc], length(experience))
     memory = MemoryBuffer(gspec, msize, experience)
     return new{typeof(gspec), typeof(curnn), GI.state_type(gspec)}(
