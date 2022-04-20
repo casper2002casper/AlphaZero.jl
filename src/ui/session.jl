@@ -232,8 +232,6 @@ end
 
 # return whether or not critical problems were found
 function zeroth_iteration!(session::Session)
-  save(session, session.dir)
-  session.save_intermediate && save(session, idir)
   session.env.itc = 0
   Log.section(session.logger, 2, "Initial report")
   report = initial_report(session.env)
@@ -328,6 +326,8 @@ function Session(
     env = Env(e.gspec, e.params, network)
     session = Session(env, dir, logger, autosave, save_intermediate, e.benchmark)
     Log.section(session.logger, 1, "Initializing a new AlphaZero environment")
+    save(session, session.dir)
+    session.save_intermediate && save(session, idir)
   end
   return session
 end
