@@ -25,6 +25,10 @@ using Flux: Chain, Dense, Conv, BatchNorm, SkipConnection, Parallel
 using GraphNeuralNetworks: GCNConv, SAGEConv
 import Zygote
 
+function Flux.unbatch(g::GraphNeuralNetworks.GNNGraph, x) 
+  return [x[g.graph_indicator .∈ Ref(i)] for i in 1:g.num_graphs]
+end
+
 #####
 ##### Flux Networks
 #####
@@ -157,9 +161,11 @@ function Network.set_params!(nn::TwoHeadNetwork, weights)
 end
 
 function Network.forward(nn::TwoHeadGraphNeuralNetwork, state)
-  c = nn.common(state)
-  v = nn.vhead(c, c.ndata.x)
-  p = nn.phead(c, c.ndata.x)
+  c = nn.common(state, state.ndata.x)
+  v = nn.vhead(state, c)
+  p = nn.phead(state, c)
+  p = softmax_nodes(state, p)
+  p = Flux.unbatch(state, p)
   return (p, v)
 end
 

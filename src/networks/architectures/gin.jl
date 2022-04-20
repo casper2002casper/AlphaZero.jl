@@ -1,6 +1,18 @@
 using GraphNeuralNetworks
-using Statistics
+using Statistics:mean
+using NNlib:gather
 
+struct GlobalConcatenation{F} <: GNNLayer
+  aggr::F
+end
+
+function (l::GlobalConcatenation)(g::GNNGraph, x::AbstractArray)
+  d = reduce_nodes(l.aggr, g, x)
+  d = gather(d, graph_indicator(g))
+  return vcat(x, d)
+end
+
+(l::GlobalConcatenation)(g::GNNGraph) = GNNGraph(g, gdata=l(g, node_features(g)))
 
 """
     GinHP
@@ -29,21 +41,20 @@ mutable struct Gin <: TwoHeadGraphNeuralNetwork
 end
 
 function Gin(gspec::AbstractGameSpec, hyper::GinHP)
-  indim, n_nodes  = GI.state_dim(gspec)
   Dense_layers(size, depth) = [Dense(size, size, relu) for _ in 1:depth]
-  f(in, out, i) = Chain(Dense((i==1) ? in : out, out, relu),
-                        Dense_layers(out, 2)..., 
-                        BatchNorm(out, relu))
-  GIN_layers(in, out, depth) = [GNNChain(GINConv(f(in, out, i), 0)) for i in 1:depth]
+  f(in, out) = Chain(Dense(in, out, relu),
+                    Dense_layers(out, 2)..., 
+                    BatchNorm(out, relu))
+  GIN_layers(in, out, depth) = [GNNChain(GINConv(f(i==1 ? in : out, out), 0)) for i in 1:depth]
+
+  indim, _ = GI.state_dim(gspec)
   common = GNNChain(GIN_layers(indim, hyper.hidden_size, 3)...)
   vhead = GNNChain(GlobalPool(mean),  
                    Dense_layers(hyper.hidden_size, 2)...,
                    Dense(hyper.hidden_size, 1, identity))
-  phead = GNNChain(Parallel(vcat, GNNChain(GlobalPool(mean), x -> repeat(x, 1, n_nodes)), identity), 
+  phead = GNNChain(GlobalConcatenation(mean), 
                    GIN_layers(2*hyper.hidden_size, 32, 2)...,
-                   Dense(32, 1),
-                   x->reshape(x, n_nodes,:),
-                   softmax)
+                   Dense(32, 1))
   return Gin(gspec, hyper, common, vhead, phead)
 end
 

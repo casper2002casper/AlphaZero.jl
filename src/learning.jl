@@ -1,3 +1,5 @@
+using MLUtils
+
 #####
 ##### Converting samples
 #####
@@ -29,8 +31,7 @@ function convert_sample(
   end
   x = GI.vectorize_state(gspec, e.s)
   a = GI.actions_mask(GI.init(gspec, e.s))
-  p = zeros(size(a))
-  p[a] = e.π
+  p = e.π
   v = [e.z]
   return (; w, x, a, p, v)
 end
@@ -43,8 +44,8 @@ function convert_samples(
   ces = [convert_sample(gspec, wp, e) for e in es]
   W = Flux.batch([e.w for e in ces])
   X = typeof(ces[1].x) <: Matrix ? Flux.batch([e.x for e in ces]) : [e.x for e in ces] 
-  A = Flux.batch([e.a for e in ces])
-  P = Flux.batch([e.p for e in ces])
+  A = [e.a for e in ces] 
+  P = batch([e.p for e in ces], 0)
   V = Flux.batch([e.v for e in ces])
   function f32(arr)
     if typeof(arr) <: Matrix
@@ -54,6 +55,12 @@ function convert_samples(
     end
   end
   return map(f32, (; W, X, A, P, V))
+end
+
+function batch(xs::AbstractVector{<:AbstractVector}, pad)
+  n = maximum(length(x) for x in xs)
+  xs_ = [rpad(x, n, pad) for x in xs]
+  return stack(xs_, dims=2)
 end
 
 #####
@@ -76,6 +83,7 @@ function losses(nn, regws, params, Wmean, Hp, (W, X, A, P, V))
   cinv = params.nonvalidity_penalty
   renorm = params.rewards_renormalization
   P̂, V̂, p_invalid = Network.forward_normalized(nn, X, A)
+  P̂ = batch(P̂, 0)
   V = isone(renorm) ? V : V ./ renorm
   V̂ = isone(renorm) ? V̂ : V̂ ./ renorm
   Lp = klloss_wmean(P̂, P, W) - Hp
@@ -162,6 +170,7 @@ function learning_status(tr::Trainer, samples)
   Ls = losses(tr.network, regws, tr.params, tr.Wmean, tr.Hp, samples)
   Ls = Network.convert_output_tuple(tr.network, Ls)
   Pnet, _ = Network.forward_normalized(tr.network, X, A)
+  Pnet = batch(Pnet, 0)
   Hpnet = entropy_wmean(Pnet, W)
   Hpnet = Network.convert_output(tr.network, Hpnet)
   return Report.LearningStatus(Report.Loss(Ls...), tr.Hp, Hpnet)

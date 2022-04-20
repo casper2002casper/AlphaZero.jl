@@ -8,10 +8,9 @@ i2mn(i, M, N) = CartesianIndices((M,N))[i]
 mn2i(m, n, M, N) = LinearIndices((M,N))[m,n]
 
 struct GameSpec <: GI.AbstractGameSpec 
-  M::UInt8
-  N::UInt8
-  P_MIN::UInt8
-  P_MAX::UInt8
+  M::Pair{UInt8, UInt8}
+  N::Pair{UInt8, UInt8}
+  P::Pair{UInt8, UInt8}
 end
 
 function generate_conjuctive_edges(rng::AbstractRNG, M, N, N_NODES, T, S)
@@ -56,8 +55,8 @@ mutable struct GameEnv <: GI.AbstractGameEnv
   N_NODES::UInt16
   T::UInt16
   S::UInt16
-  # UB::UInt16
-  # LB::UInt16
+  UB::UInt16
+  LB::UInt16
   #State
   disj_src::Vector{UInt8}
   disj_tar::Vector{UInt8}
@@ -69,12 +68,12 @@ mutable struct GameEnv <: GI.AbstractGameEnv
 end
 
 function GI.init(spec::GameSpec, rng::AbstractRNG) 
-  M = spec.M
-  N = spec.M
+  M = rand(rng, spec.M.first:spec.M.second)
+  N = rand(rng, spec.N.first:spec.N.second)
   N_NODES = M*N #[nodes, T, S]
   T = M*N+1 
   S = M*N+2 
-  p_time = [rand(rng, spec.P_MIN:spec.P_MAX, N_NODES); 0; 0] #Nodes time plus t, s = 0
+  p_time = [rand(rng, spec.P.first:spec.P.second, N_NODES); 0; 0] #Nodes time plus t, s = 0
   conj_tar = generate_conjuctive_edges(rng, M, N, N_NODES, T, S)
   start_edges_n = collect(0:N-1) .+ S
   start_edges_m = collect(0:M-1) .+ S
@@ -88,8 +87,8 @@ function GI.init(spec::GameSpec, rng::AbstractRNG)
     N_NODES,
     T,
     S,
-    # sum(p_time),
-    # maximum(sum.([p_time[i*M+1:(i+1)*M] for i in 0:N-1])),
+    sum(p_time),
+    maximum(sum.([p_time[i*M+1:(i+1)*M] for i in 0:N-1])),
     #State
     [collect(1:N_NODES)..., T, S * ones(M)...],
     [collect(1:N_NODES)..., T, S * ones(M)...],
@@ -111,8 +110,8 @@ GI.init(spec::GameSpec, s) = GameEnv(
   s.N_NODES,
   s.T,
   s.S,
-  # s.UB,
-  # s.LB,
+  s.UB,
+  s.LB,
   #Mutable values
   copy(s.disj_src),
   copy(s.disj_tar),
@@ -122,11 +121,11 @@ GI.init(spec::GameSpec, s) = GameEnv(
   copy(s.prev_machine),
 )
 
-GI.spec(g::GameEnv) = GameSpec(g.M, g.N, 1, 5)
+GI.spec(g::GameEnv) = GameSpec(g.M=>g.M, g.N=>g.N, 1=>5)
 
 GI.two_players(::GameSpec) = false
 
-GI.state_dim(spec::GameSpec) = (2, (spec.M*spec.N+2))#Opperations + source and sink
+GI.state_dim(spec::GameSpec) = (2, (spec.M.second*spec.N.second+2))#Opperations + source and sink
 
 GI.set_state!(g::GameEnv, s) = g = s
 
@@ -139,8 +138,8 @@ GI.current_state(g::GameEnv) = (
   N_NODES = g.N_NODES,
   T = g.T,
   S = g.S,
-  # UB = g.UB,
-  # LB = g.LB,
+  UB = g.UB,
+  LB = g.LB,
   disj_src = copy(g.disj_src),
   disj_tar = copy(g.disj_tar),
   is_done = copy(g.is_done),
@@ -153,7 +152,7 @@ GI.white_playing(g::GameEnv) = true
 
 GI.game_terminated(g::GameEnv) = all(g.conj_tar[g.prev_operation].==g.T)
 
-GI.actions(spec::GameSpec) = collect(1:(spec.M*spec.N+2)) 
+GI.actions(spec::GameSpec) = collect(1:(spec.M.second*spec.N.second+2)) 
 
 function GI.actions_mask(g::GameEnv)
   valid_action = zeros(Bool, g.S)
@@ -190,14 +189,13 @@ end
 
 function GI.white_reward(g::GameEnv)
   if(all(g.is_done))
-    #println("dt:", g.done_time[T], " ub:", g.UB, " lb:", g.LB, " vl:", (g.UB - g.done_time[T])/(g.UB - g.LB))
-    return -convert(Float32, g.done_time[g.T])
-    #return ((g.UB - g.done_time[T])/(g.UB - g.LB))
+    #return -convert(Float32, g.done_time[g.T])
+    return ((g.UB - g.done_time[g.T])/(g.UB - g.LB))
   end
   return 0
 end
 
-function GI.vectorize_state(::GameSpec, state) 
+function GI.vectorize_state(::GameSpec, state) #
   return  GNNGraph([state.conj_src; state.disj_src], 
                    [state.conj_tar; state.disj_tar], 
                    num_nodes = state.S, 
@@ -209,7 +207,7 @@ end
 #####
 
 function GI.action_string(spec::GameSpec, o)
-  mn = i2mn(o, spec.M, spec.N)
+  mn = i2mn(o, spec.M.second, spec.N.second)
   return string("job: ", mn[2], " machine: ", mn[1])
 end
 
@@ -219,7 +217,7 @@ function GI.parse_action(spec::GameSpec, str)
     @assert length(s) == 2
     n = parse(Int, s[1])
     m = parse(Int, s[2])
-    return mn2i(m,n, spec.M, spec.N)
+    return mn2i(m,n, spec.M.second, spec.N.second)
   catch e
     return nothing
   end
