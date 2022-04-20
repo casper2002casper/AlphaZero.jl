@@ -4,17 +4,17 @@ netparams = NetLib.GinHP()
 
 self_play = SelfPlayParams(
   sim=SimParams(
-    num_games=1024,
-    num_workers=512,
-    batch_size=256,
+    num_games=256,
+    num_workers=256,
+    batch_size=128,
     use_gpu=true,
     reset_every=1,
     flip_probability=0.,
     alternate_colors=false),
   mcts=MctsParams(
-    num_iters_per_turn=100,
+    num_iters_per_turn=300,
     cpuct=0.8,
-    adaptive_cpuct = true,
+    adaptive_cpuct = false,
     temperature=ConstSchedule(0.05),
     dirichlet_noise_ϵ=0.,
     dirichlet_noise_α=0.2))
@@ -32,7 +32,7 @@ learning = LearningParams(
   min_checkpoints_per_epoch=1,
   max_batches_per_checkpoint=2_000,
   num_checkpoints=1,
-  rewards_renormalization = 22)
+  rewards_renormalization = 1)
 
 params = Params(
   arena=nothing,
@@ -46,9 +46,9 @@ params = Params(
 
 benchmark_sim = SimParams(
   self_play.sim;
-  num_games=5,
-  num_workers=1,
-  batch_size=1,
+  num_games=64,
+  num_workers=64,
+  batch_size=32,
   deterministic = true)
 
 benchmark = [
