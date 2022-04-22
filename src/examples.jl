@@ -17,12 +17,16 @@ module Examples
   include("../games/jsp/main.jl")
   export JSP
 
+  include("../games/fjsp/main.jl")
+  export FJSP
+
   const games = Dict(
-    "grid-world" => GridWorld.GameSpec(),
-    "tictactoe" => Tictactoe.GameSpec(),
-    "connect-four" => ConnectFour.GameSpec(),
-    "mancala" => Mancala.GameSpec(),
-    "jsp" => JSP.Training.experiment.gspec)
+    "grid-world" => GridWorld.experiment.gspec,
+    "tictactoe" => Tictactoe.experiment.gspec,
+    "connect-four" => ConnectFour.experiment.gspec,
+    "mancala" => Mancala.experiment.gspec,
+    "jsp" => JSP.Training.experiment.gspec,
+    "fjsp" => FJSP.Training.experiment.gspec)
     # "ospiel_ttt" => OSpielTictactoe.GameSpec()
   # ospiel_ttt is added from openspiel_example.jl when OpenSpiel.jl is imported
 
@@ -32,7 +36,8 @@ module Examples
     "tictactoe" => Tictactoe.Training.experiment,
     "connect-four" => ConnectFour.Training.experiment,
     "mancala" => Mancala.Training.experiment,
-    "jsp" => JSP.Training.experiment)
+    "jsp" => JSP.Training.experiment,
+    "fjsp" => FJSP.Training.experiment)
     # "ospiel_ttt" => OSpielTictactoe.Training.experiment
 
 end
