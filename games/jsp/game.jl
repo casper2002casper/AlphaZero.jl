@@ -1,4 +1,5 @@
 import AlphaZero.GI
+using AlphaZero:AbstractSchedule, ConstSchedule
 using GraphNeuralNetworks
 using Random 
 using Crayons
@@ -8,8 +9,8 @@ i2mn(i, M, N) = CartesianIndices((M,N))[i]
 mn2i(m, n, M, N) = LinearIndices((M,N))[m,n]
 
 struct GameSpec <: GI.AbstractGameSpec 
-  M::Pair{UInt8, UInt8}
-  N::Pair{UInt8, UInt8}
+  M::Pair{AbstractSchedule, AbstractSchedule}
+  N::Pair{AbstractSchedule, AbstractSchedule}
   P::Pair{UInt8, UInt8}
 end
 
@@ -67,9 +68,9 @@ mutable struct GameEnv <: GI.AbstractGameEnv
   prev_machine::Vector{UInt8}
 end
 
-function GI.init(spec::GameSpec, rng::AbstractRNG) 
-  M = rand(rng, spec.M.first:spec.M.second)
-  N = rand(rng, spec.N.first:spec.N.second)
+function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG) 
+  M = rand(rng, spec.M.first[itc]:spec.M.second[itc])
+  N = rand(rng, spec.N.first[itc]:spec.N.second[itc])
   N_NODES = M*N #[nodes, T, S]
   T = M*N+1 
   S = M*N+2 
@@ -121,13 +122,30 @@ GI.init(spec::GameSpec, s) = GameEnv(
   copy(s.prev_machine),
 )
 
-GI.spec(g::GameEnv) = GameSpec(g.M=>g.M, g.N=>g.N, 1=>5)
+GI.spec(g::GameEnv) = GameSpec(ConstSchedule(g.M)=>ConstSchedule(g.M), ConstSchedule(g.N)=>ConstSchedule(g.N), 1=>5)
 
 GI.two_players(::GameSpec) = false
 
-GI.state_dim(spec::GameSpec) = (2, (spec.M.second*spec.N.second+2))#Opperations + source and sink
+GI.state_dim(spec::GameSpec) = (2, (spec.M.second[1]*spec.N.second[1]+2))#Opperations + source and sink
 
-GI.set_state!(g::GameEnv, s) = g = s
+function GI.set_state!(g::GameEnv, s) 
+  g.process_time = s.process_time
+  g.conj_src = s.conj_src
+  g.conj_tar = s.conj_tar
+  g.M = s.M
+  g.N = s.N
+  g.N_NODES = s.N_NODES
+  g.T = s.T
+  g.S = s.S
+  g.UB = s.UB
+  g.LB = s.LB
+  g.disj_src = copy(s.disj_src)
+  g.disj_tar = copy(s.disj_tar)
+  g.is_done = copy(s.is_done)
+  g.done_time = copy(s.done_time)
+  g.prev_operation = copy(s.prev_operation)
+  g.prev_machine = copy(s.prev_machine)
+end
 
 GI.current_state(g::GameEnv) = (
   process_time = g.process_time,
@@ -152,7 +170,9 @@ GI.white_playing(g::GameEnv) = true
 
 GI.game_terminated(g::GameEnv) = all(g.conj_tar[g.prev_operation].==g.T)
 
-GI.actions(spec::GameSpec) = collect(1:(spec.M.second*spec.N.second+2)) 
+GI.actions(spec::GameSpec) = collect(1:(spec.M.second[1]*spec.N.second[1]+2))  
+
+GI.available_actions(g::GameEnv) = filter(x->x!=g.T, g.conj_tar[g.prev_operation])
 
 function GI.actions_mask(g::GameEnv)
   valid_action = zeros(Bool, g.S)
@@ -245,7 +265,7 @@ function GI.render(g::GameEnv)
     end
     println(crayon"reset")
   end
-  for n in 1:N
+  for n in 1:g.N
     print(Crayon(foreground = n), "n", n, " ")
   end
   println(crayon"reset")

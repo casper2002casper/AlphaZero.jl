@@ -43,7 +43,7 @@ Intuitively, a game environment holds a game specification and a current state.
 abstract type AbstractGameEnv end
 
 """
-    init(::AbstractGameSpec, ::AbstractRNG) :: AbstractGameEnv
+    init(::AbstractGameSpec, itc::Integer, rng::AbstractRNG) :: AbstractGameEnv
 
 Create a new game environment in a (possibly random) initial state.
 """
@@ -297,7 +297,7 @@ function init(gspec::AbstractGameSpec, state)
   return env
 end
 
-init(gspec::AbstractGameSpec) = init(gspec, GLOBAL_RNG)
+init(gspec::AbstractGameSpec) = init(gspec, 1, GLOBAL_RNG)
 
 #####
 ##### Derived env functions

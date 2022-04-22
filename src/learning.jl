@@ -31,7 +31,7 @@ function convert_sample(
   end
   x = GI.vectorize_state(gspec, e.s)
   a = GI.actions_mask(GI.init(gspec, e.s))
-  p = e.π
+  p = Float32.(e.π)
   v = [e.z]
   return (; w, x, a, p, v)
 end
@@ -40,12 +40,11 @@ function convert_samples(
     gspec::AbstractGameSpec,
     wp::SamplesWeighingPolicy,
     es::AbstractVector{<:TrainingSample})
-    
   ces = [convert_sample(gspec, wp, e) for e in es]
   W = Flux.batch([e.w for e in ces])
   X = typeof(ces[1].x) <: Matrix ? Flux.batch([e.x for e in ces]) : [e.x for e in ces] 
   A = [e.a for e in ces] 
-  P = batch([e.p for e in ces], 0)
+  P = Flux.batch([e.p for e in ces], 0)
   V = Flux.batch([e.v for e in ces])
   function f32(arr)
     if typeof(arr) <: Matrix
@@ -57,10 +56,9 @@ function convert_samples(
   return map(f32, (; W, X, A, P, V))
 end
 
-function batch(xs::AbstractVector{<:AbstractVector}, pad)
+function Flux.batch(xs::AbstractVector{<:AbstractVector}, pad)
   n = maximum(length(x) for x in xs)
-  xs_ = [rpad(x, n, pad) for x in xs]
-  return stack(xs_, dims=2)
+  return stack(rpad.(xs, n, pad), dims=2)
 end
 
 #####

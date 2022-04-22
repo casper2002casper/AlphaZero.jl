@@ -5,14 +5,14 @@
 
 using Setfield
 
-dummy_run_mcts(p::MctsParams) = @set p.num_iters_per_turn = 2
+dummy_run_mcts(p::MctsParams) = @set p.num_iters_per_turn = 4
 
 dummy_run_player(p::Benchmark.Player) = p
 dummy_run_player(p::Benchmark.Full) = @set p.params = dummy_run_mcts(p.params)
 dummy_run_player(p::Benchmark.MctsRollouts) = @set p.params = dummy_run_mcts(p.params)
 
 function dummy_run_sim(s::SimParams)
-  s = @set s.num_games = 1
+  s = @set s.num_games = 2
   s = @set s.num_workers = 1
   s = @set s.batch_size = 1
   return s

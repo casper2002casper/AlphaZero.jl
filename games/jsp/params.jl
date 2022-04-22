@@ -5,8 +5,8 @@ netparams = NetLib.GinHP()
 self_play = SelfPlayParams(
   sim=SimParams(
     num_games=256,
-    num_workers=256,
-    batch_size=128,
+    num_workers=200,
+    batch_size=100,
     use_gpu=true,
     reset_every=1,
     flip_probability=0.,
@@ -47,8 +47,8 @@ params = Params(
 benchmark_sim = SimParams(
   self_play.sim;
   num_games=64,
-  num_workers=64,
-  batch_size=32,
+  num_workers=44,
+  batch_size=22,
   deterministic = true)
 
 benchmark = [
@@ -60,4 +60,6 @@ benchmark = [
     benchmark_sim)]
 
 experiment = Experiment(
-  "jsp", GameSpec(4=>4, 4=>4, 1=>5), params, Network, netparams, benchmark)
+  "jsp", GameSpec(PLSchedule([1, 10], [2, 6])=>PLSchedule([1, 10], [4, 8]), 
+                  PLSchedule([1, 10], [2, 6])=>PLSchedule([1, 10], [4, 8]), 
+                  1=>5), params, Network, netparams, benchmark)

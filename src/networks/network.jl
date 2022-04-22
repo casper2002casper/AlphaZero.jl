@@ -271,7 +271,7 @@ All tensors manipulated by this function have elements of type `Float32`.
 """
 function forward_normalized(nn::AbstractNetwork, state, actions_mask)
   p, v = forward(nn, state)
-  p = [p[i][actions_mask[i]] for i in 1:length(actions_mask)]
+  p = broadcast((x,y)->x[y], p, actions_mask)#[p[i][actions_mask[i]] for i in 1:length(actions_mask)]
   sp = sum.(p)
   p = p ./ (sp .+ eps(eltype(sp)))
   p_invalid = 1 .- sp
@@ -303,8 +303,7 @@ function evaluate(nn::AbstractNetwork, state)
   gspec = game_spec(nn)
   actions_mask = GI.actions_mask(GI.init(gspec, state))
   x = GI.vectorize_state(gspec, state)
-  a = actions_mask
-  xnet, anet = to_singletons.(convert_input_tuple(nn, (x, a)))
+  xnet, anet = to_singletons.(convert_input_tuple(nn, (x, actions_mask)))
   net_output = forward_normalized(nn, xnet, anet)
   p, v, _ = from_singletons.(convert_output_tuple(nn, net_output))
   return (p, v[1])

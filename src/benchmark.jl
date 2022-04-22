@@ -90,7 +90,7 @@ function run(env::Env, eval::Evaluation, progress=nothing)
     end
   end
   samples, elapsed = @timed simulate(
-    simulator, env.gspec, eval.sim,
+    simulator, env.gspec, eval.sim, env.itc,
     game_simulated=(() -> next!(progress)))
   gamma = env.params.self_play.mcts.gamma
   rewards, redundancy = rewards_and_redundancy(samples, gamma=gamma)

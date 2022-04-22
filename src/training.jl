@@ -127,7 +127,7 @@ end
 # Have a "contender" network play against a "baseline" network (params::ArenaParams)
 # Return (rewards vector, redundancy)
 # Version for two-player games
-function pit_networks(gspec, contender, baseline, params, handler)
+function pit_networks(gspec, contender, baseline, itc, params, handler)
   make_oracles() = (
     Network.copy(contender, on_gpu=params.sim.use_gpu, test_mode=true),
     Network.copy(baseline, on_gpu=params.sim.use_gpu, test_mode=true))
@@ -137,35 +137,35 @@ function pit_networks(gspec, contender, baseline, params, handler)
     return TwoPlayers(white, black)
   end
   samples = simulate(
-    simulator, gspec, params.sim,
+    simulator, gspec, params.sim, itc,
     game_simulated=(() -> Handlers.checkpoint_game_played(handler)))
   return rewards_and_redundancy(samples, gamma=params.mcts.gamma)
 end
 
 # Evaluate a single neural network for a one-player game (params::ArenaParams)
-function evaluate_network(gspec, net, params, handler)
+function evaluate_network(gspec, net, itc, params, handler)
   make_oracles() = Network.copy(net, on_gpu=params.sim.use_gpu, test_mode=true)
   simulator = Simulator(make_oracles, record_trace) do oracle
     MctsPlayer(gspec, oracle, params.mcts)
   end
   samples = simulate(
-    simulator, gspec, params.sim,
+    simulator, gspec, params.sim, itc,
     game_simulated=(() -> Handlers.checkpoint_game_played(handler)))
   return rewards_and_redundancy(samples, gamma=params.mcts.gamma)
 end
 
 # Compare two versions of a neural network (params::ArenaParams)
 # Works for both two-player and single-player games
-function compare_networks(gspec, contender, baseline, params, handler)
+function compare_networks(gspec, contender, baseline, itc, params, handler)
   legend = "Most recent NN versus best NN so far"
   if GI.two_players(gspec)
     (rewards_c, red), t =
-      @timed pit_networks(gspec, contender, baseline, params, handler)
+      @timed pit_networks(gspec, contender, baseline, itc, params, handler)
     avgr = mean(rewards_c)
     rewards_b = nothing
   else
-    (rewards_c, red_c), tc = @timed evaluate_network(gspec, contender, params, handler)
-    (rewards_b, red_b), tb = @timed evaluate_network(gspec, baseline, params, handler)
+    (rewards_c, red_c), tc = @timed evaluate_network(gspec, contender, itc, params, handler)
+    (rewards_b, red_b), tb = @timed evaluate_network(gspec, baseline, itc, params, handler)
     avgr = mean(rewards_c) - mean(rewards_b)
     red = mean([red_c, red_b])
     t = tc + tb
@@ -239,7 +239,7 @@ function learning_step!(env::Env, handler)
       Handlers.checkpoint_started(handler)
       env.curnn = get_trained_network(trainer)
       eval_report =
-        compare_networks(env.gspec, env.curnn, env.bestnn, ap, handler)
+        compare_networks(env.gspec, env.curnn, env.bestnn, env.itc, ap, handler)
       teval += eval_report.time
       # If eval is good enough, replace network
       success = (eval_report.avgr >= best_evalr)
@@ -285,7 +285,7 @@ function self_play_step!(env::Env, handler)
   end
   # Run the simulations
   results, elapsed = @timed simulate_distributed(
-    simulator, env.gspec, params.sim,
+    simulator, env.gspec, params.sim, env.itc,
     game_simulated=()->Handlers.game_played(handler))
   # Add the collected samples in memory
   new_batch!(env.memory)

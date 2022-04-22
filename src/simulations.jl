@@ -208,7 +208,8 @@ Return a vector of objects computed by `simulator.measure`.
 function simulate(
     simulator::Simulator,
     gspec::AbstractGameSpec,
-    p::SimParams;
+    p::SimParams,
+    itc::Int;
     game_simulated)
   oracles = simulator.make_oracles()
   spawn_oracles, done =
@@ -235,7 +236,7 @@ function simulate(
         player_pf = player
       end
       # Play the game and generate a report
-      trace = play_game(gspec, player_pf, flip_probability=p.flip_probability, rng=p.deterministic ? MersenneTwister(seed) : Random.GLOBAL_RNG)
+      trace = play_game(gspec, player_pf, flip_probability=p.flip_probability, itc=itc, rng=p.deterministic ? MersenneTwister(seed) : Random.GLOBAL_RNG)
       report = simulator.measure(trace, colors_flipped, player)
       # Signal that a game has been simulated
       game_simulated()
@@ -254,7 +255,8 @@ workers, whose number is given by `Distributed.nworkers()`.
 function simulate_distributed(
     simulator::Simulator,
     gspec::AbstractGameSpec,
-    p::SimParams;
+    p::SimParams,
+    itc::Int;
     game_simulated)
 
   # Spawning a task to keep count of completed simulations
@@ -277,6 +279,7 @@ function simulate_distributed(
           simulator,
           gspec,
           SimParams(p; num_games=(w == workers[1] ? num_each + rem : num_each)),
+          itc,
           game_simulated=remote_game_simulated)
         end
     end
