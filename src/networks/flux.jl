@@ -20,7 +20,7 @@ array_on_gpu(::Array) = false
 array_on_gpu(::CuArray) = true
 array_on_gpu(arr) = error("Usupported array type: ", typeof(arr))
 
-using Flux: relu, softmax, flatten
+using Flux: relu, softmax, flatten, σ
 using Flux: Chain, Dense, Conv, BatchNorm, SkipConnection, Parallel
 using GraphNeuralNetworks: GCNConv, SAGEConv
 import Zygote
