@@ -21,10 +21,10 @@ module Examples
   export FJSP
 
   const games = Dict(
-    "grid-world" => GridWorld.experiment.gspec,
-    "tictactoe" => Tictactoe.experiment.gspec,
-    "connect-four" => ConnectFour.experiment.gspec,
-    "mancala" => Mancala.experiment.gspec,
+    "grid-world" => GridWorld.Training.experiment.gspec,
+    "tictactoe" => Tictactoe.Training.experiment.gspec,
+    "connect-four" => ConnectFour.Training.experiment.gspec,
+    "mancala" => Mancala.Training.experiment.gspec,
     "jsp" => JSP.Training.experiment.gspec,
     "fjsp" => FJSP.Training.experiment.gspec)
     # "ospiel_ttt" => OSpielTictactoe.GameSpec()
