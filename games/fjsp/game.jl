@@ -122,8 +122,8 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
     action_src,
     action_tar,
     action_info,
-    [collect(1:N_OPP); T; S * ones(M)],
-    [collect(1:N_OPP); T; S * ones(M)],
+    [],
+    [],
     [falses(N_OPP); false; true], #[Operations, T, S]
     node_done,
     action_done,
@@ -212,7 +212,7 @@ GI.current_state(g::GameEnv) = (
 
 GI.white_playing(g::GameEnv) = true
 
-GI.game_terminated(g::GameEnv) = all(g.conj_tar[g.prev_operation] .== g.T)
+GI.game_terminated(g::GameEnv) = g.is_done[g.T]
 
 GI.actions(spec::GameSpec) = collect(1:(spec.M.second[1]*spec.N.second[1]+2))
 
@@ -232,10 +232,9 @@ function GI.play!(g::GameEnv, action)
   #update info vectors
   g.prev_machine[m] = o
   g.prev_operation[i] = o
-  #determine if all opperations are done
-  GI.game_terminated(g) && (g.is_done[g.T] = true)
   #add disjunctive link
-  g.disj_tar[k] = o
+  append!(g.disj_src, k) 
+  append!(g.disj_tar, o)
   #convert from edge to node notation
   l = min(l, g.S)
   k = min(k, g.S)
@@ -260,8 +259,10 @@ function GI.play!(g::GameEnv, action)
     g.action_src = [g.action_src; [o self min(g.prev_machine[m], g.S)]]
     g.action_tar = [g.action_tar; [self next_next_o self]]
     g.action_info = [g.action_info; [m next_o]]
-    g.action_done_time = [g.action_done_time; g.done_time[o] + p_time]
+    append!(g.action_done_time, g.done_time[o] + p_time)
   end
+  #mark last operation as done
+  length(g.action_done_time)==0 && (g.is_done[g.T] = true)
   #propagate expected done time
   last_done_time = g.done_time[o]
   while (true)
