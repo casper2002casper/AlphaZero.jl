@@ -30,7 +30,7 @@ module Examples
     "mancala" => Mancala.Training.experiment.gspec,
     "jsp" => JSP.Training.experiment.gspec,
     "fjsp" => FJSP.Training.experiment.gspec,
-    "fjspt" => FJSPT.Training.expiment.gspec)
+    "fjspt" => FJSPT.Training.experiment.gspec)
     # "ospiel_ttt" => OSpielTictactoe.GameSpec()
   # ospiel_ttt is added from openspiel_example.jl when OpenSpiel.jl is imported
 

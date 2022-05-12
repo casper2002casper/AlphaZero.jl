@@ -63,4 +63,6 @@ experiment = Experiment(
   "fjspt", GameSpec(PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 2]), 
                   PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 2]), 
                   PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 2]), 
+                  PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 2]), 
+                  1=>5,
                   1=>5), params, Network, netparams, benchmark)
