@@ -99,7 +99,7 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
   N_OPP = M * N #[nodes, T, S]
   T = M * N + 1
   S = M * N + 2
-  gen_node() = Dict([UInt8(i) => rand(rng, spec.P.first:spec.P.second) for i in randperm(M)[1:rand(rng, spec.A.first[itc]:spec.A.second[itc])]])
+  gen_node() = Dict([UInt8(i) => rand(rng, spec.P.first:spec.P.second) for i in randperm(rng, M)[1:rand(rng, spec.A.first[itc]:spec.A.second[itc])]])
   p_time = [gen_node() for _ in 1:N_OPP]
   conj_tar = generate_conjuctive_edges(rng, M, N, N_OPP, T, S)
   start_edges_n = collect(0:N-1) .+ S
@@ -262,7 +262,7 @@ function GI.play!(g::GameEnv, action)
     append!(g.action_done_time, g.done_time[o] + p_time)
   end
   #mark last operation as done
-  length(g.action_done_time)==0 && (g.is_done[g.T] = true)
+  isempty(g.action_done_time) && (g.is_done[g.T] = true)
   #propagate expected done time
   last_done_time = g.done_time[o]
   while (true)
