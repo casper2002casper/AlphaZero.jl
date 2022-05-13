@@ -60,9 +60,9 @@ benchmark = [
     benchmark_sim)]
 
 experiment = Experiment(
-  "fjspt", GameSpec(PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 2]), 
-                  PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 2]), 
-                  PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 2]), 
-                  PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 2]), 
-                  1=>5,
-                  1=>5), params, Network, netparams, benchmark)
+  "fjspt", GameSpec(PLSchedule([1, 10], [4, 4])=>PLSchedule([1, 10], [4, 4]), 
+                    PLSchedule([1, 10], [4, 4])=>PLSchedule([1, 10], [4, 4]), 
+                    PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 2]), 
+                    PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 2]), 
+                    1=>5,
+                    1=>5), params, Network, netparams, benchmark)

@@ -24,6 +24,11 @@ mutable struct AdaptiveNodes
 end
 
 Base.copy(s::AdaptiveNodes) = AdaptiveNodes(copy(s.src), copy(s.tar), copy(s.info), copy(s.done_time))
+Base.isequal(a::AdaptiveNodes, b::AdaptiveNodes) = isequal((a.src, a.tar, a.info, a.done_time), (b.src, b.tar, b.info, b.done_time))
+function Base.hash(s::AdaptiveNodes, h::UInt)
+  fs = (getfield(s, k) for k in fieldnames(AdaptiveNodes))
+  return foldl((h, f) -> hash(f, h),  fs, init=hash(AdaptiveNodes, h))
+end
 
 function generate_conjuctive_edges(rng::AbstractRNG, M, N, N_OPP, T, S)
   order = reduce(vcat, [(randperm(rng, M) .+ i * M) for i in 0:N-1]) * 2 .-1#order of operations
@@ -72,7 +77,7 @@ function gen_action_values(p_time, t_time, conj_tar, start_edges, K, S)
     t = conj_tar[e]
     o = conj_tar[t]
     for (m, m_time) in enumerate(p_time[o÷2,:])
-      p_time==0xff && continue  
+      m_time==0xff && continue  
       for k in 1:K  
         t_node_id = S + length(nodes.done_time) + 1
         m_node_id = t_node_id + 1
@@ -107,8 +112,8 @@ mutable struct GameEnv <: GI.AbstractGameEnv
   done_time::Vector{UInt16}
   adaptive_nodes::AdaptiveNodes
   #Info
-  prev_operation::Vector{UInt8}
-  prev_machine::Matrix{UInt8}
+  prev_operation::Matrix{UInt8}
+  prev_machine::Vector{UInt8}
   prev_vehicle::Matrix{UInt8}
 end
 
@@ -121,7 +126,7 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
   S = N_OPP * 2 + 2
   p_time = rand(rng, spec.P.first:spec.P.second, N_OPP, M) 
   for o in 1:N_OPP
-    ind = randperm(M)[1:M-rand(rng, spec.A.first[itc]:spec.A.second[itc])]
+    ind = randperm(rng, M)[1:M-rand(rng, spec.A.first[itc]:spec.A.second[itc])]
     p_time[o,ind] .= 0xff
   end
   t_time = rand(rng, spec.T.first:spec.T.second, M + 2, M + 2)
@@ -140,8 +145,8 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
     N_OPP,
     T,
     S,
-    sum(maximum.(values.(p_time))), #All worst operations in a row
-    maximum(sum.([minimum.(values.(p_time[i*M+1:(i+1)*M])) for i in 0:N-1])),#Best operations parrallel
+    sum(maximum(replace(p_time, 0xff=>0x00), dims=2)) + (sum(maximum(t_time, dims=2)) + sum(maximum(t_time, dims=1))) * N, #All worst operations in a row
+    maximum(sum.(minimum.([p_time[i*M+1:(i+1)*M, :] for i in 0:N-1], dims=2))) + sum(minimum(t_time[end-2:end,:], dims=2))*2*N,#Best operations parrallel
     [collect(1:N_OPP*2); T; S * ones(N)],
     conj_tar,
     #State
@@ -151,9 +156,9 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
     node_done,
     adaptive_nodes,
     #Info
-    start_edges_n,
-    [start_edges_m repeat([S], M)],
-    ones(UInt8, K, 2) * S
+    [start_edges_n repeat([M+2], N)],
+    start_edges_m,
+    repeat([S M+2], K)
   )
 end
 
@@ -248,11 +253,11 @@ GI.actions_mask(g::GameEnv) = [falses(g.S); repeat([false, true], size(g.adaptiv
 function GI.play!(g::GameEnv, action)
   #mark operation scheduled
   m, k, o = g.adaptive_nodes.info[(action-g.S)÷2, :]
-  t = o - g.N_OPP
+  t = o - 1
   @assert g.is_done[o] == false
   g.is_done[o] = true
   g.is_done[t] = true
-  i = o2ji(o, g.M, g.N)[2]
+  i = o2ji(o÷2, g.M, g.N)[2]
   #update previous operation and machine
   p = g.prev_machine[m] #previous operation done on machine of todo operation
   l, m_l = g.prev_operation[i,:] #previous operation done in job of todo operation
@@ -269,16 +274,16 @@ function GI.play!(g::GameEnv, action)
   p = min(p, g.S)
   #set done time
   g.done_time[t] = max(g.done_time[l], g.done_time[u] + g.transport_time[m_u, m_l]) + g.transport_time[m_l, m] 
-  g.done_time[o] = max(g.done_time[o, 1], g.done_time[p]) + get(g.process_time[o], m, nothing)
+  g.done_time[o] = max(g.done_time[t], g.done_time[p]) + g.process_time[o÷2, m]
   #remove old actions
-  mask = g.nodes.info[:, 3] .!== o
+  mask = g.adaptive_nodes.info[:, 3] .!== o
   g.adaptive_nodes.src = g.adaptive_nodes.src[mask, :]
   g.adaptive_nodes.tar = g.adaptive_nodes.tar[mask, :]
   g.adaptive_nodes.info = g.adaptive_nodes.info[mask, :]
   g.adaptive_nodes.done_time = g.adaptive_nodes.done_time[mask,:]
   #fix disjunctive edges 
   g.adaptive_nodes.src[g.adaptive_nodes.info[:,2].==k, 2] .= t
-  g.adaptive_nodes.src[g.adaptive_nodes.info[:,1].==m, 5] .= o #fix
+  g.adaptive_nodes.src[g.adaptive_nodes.info[:,1].==m, 5] .= o 
   #fix node ids
   num_adaptive_nodes = size(g.adaptive_nodes.done_time,1)*2
   t_ids = collect(g.S+1:2:g.S+num_adaptive_nodes)
@@ -293,21 +298,22 @@ function GI.play!(g::GameEnv, action)
   next_t = g.conj_tar[o]
   next_o = g.conj_tar[next_t]
   next_next_t = g.conj_tar[next_o]
-  next_next_o= g.conj_tar[next_next_t]
-  for (m_, p_time) in enumerate(p_time[o÷2,:])
-    p_time==0xff && continue  
-    for k in 1:g.K
-      t_node_id = S + size(g.nodes.done_time,1)*2 + 1
-      m_node_id = t_node_id + 1
-      g.adaptive_nodes.src = [g.adaptive_nodes.src; [o g.prev_vehicle[k] t_node_id m_node_id g.prev_machine[m_]]]
-      g.adaptive_nodes.tar = [g.adaptive_nodes.tar; [t_node_id t_node_id m_node_id next_next_t m_node_id]]
-      g.adaptive_nodes.info = [g.adaptive_nodes.info; [m k next_next_o]]
-      transport_done = g.done_time[o]+g.transport_time[m, m_]
-      g.adaptive_nodes.done_time = [g.adaptive_nodes.done_time; [transport_done transport_done+p_time]]
+  if(!isequal(next_o, g.T))
+    for (p_m, p_time) in enumerate(g.process_time[next_o÷2,:])
+      p_time==0xff && continue  
+      for k in 1:g.K
+        t_node_id = g.S + length(g.adaptive_nodes.done_time) + 1
+        m_node_id = t_node_id + 1
+        g.adaptive_nodes.src = [g.adaptive_nodes.src; [o g.prev_vehicle[k] t_node_id m_node_id g.prev_machine[p_m]]]
+        g.adaptive_nodes.tar = [g.adaptive_nodes.tar; [t_node_id t_node_id m_node_id next_next_t m_node_id]]
+        g.adaptive_nodes.info = [g.adaptive_nodes.info; [p_m k next_o]]
+        transport_done = g.done_time[o]+g.transport_time[m, p_m]
+        g.adaptive_nodes.done_time = [g.adaptive_nodes.done_time; [transport_done transport_done+p_time]]
+      end
     end
   end
   #mark last node as done
-  size(g.action_done_time, 1) == 0 && (g.is_done[g.T] = true)
+  isempty(g.adaptive_nodes.done_time) && (g.is_done[g.T] = true)
   #propagate expected done time
   last_done_time = g.done_time[o]
   last_m = m
@@ -318,9 +324,9 @@ function GI.play!(g::GameEnv, action)
       g.done_time[g.T] = max(g.done_time[g.T], last_done_time)
       return
     end
-    m_time, m = findmin(p_time[o÷2,:])
-    done_time[t] = last_done_time + t_time[last_m,m]
-    last_done_time = done_time[o] = done_time[t] + m_time
+    m_time, m = findmin(g.process_time[o÷2,:])
+    g.done_time[t] = last_done_time + g.transport_time[last_m,m]
+    last_done_time = g.done_time[o] = g.done_time[t] + m_time
     last_m = m
   end
 end
