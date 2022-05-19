@@ -213,8 +213,8 @@ function simulate(
     game_simulated)
   oracles = simulator.make_oracles()
   spawn_oracles, done =
-    batchify_oracles(oracles; p.num_workers, p.batch_size, p.fill_batches)
-  return Util.mapreduce(1:p.num_games, p.num_workers, vcat, []) do
+    batchify_oracles(oracles; num_workers=p.num_workers[itc], batch_size=p.batch_size[itc], p.fill_batches)
+  return Util.mapreduce(1:p.num_games[itc], p.num_workers[itc], vcat, []) do
     oracles = spawn_oracles()
     player = simulator.make_player(oracles)
     worker_sim_id = 0
@@ -262,14 +262,14 @@ function simulate_distributed(
   # Spawning a task to keep count of completed simulations
   chan = Distributed.RemoteChannel(()->Channel{Nothing}(1))
   Util.@tspawn_main begin
-    for i in 1:p.num_games
+    for i in 1:p.num_games[itc]
       take!(chan)
       game_simulated()
     end
   end
   remote_game_simulated() = put!(chan, nothing)
   # Distributing the simulations across workers
-  num_each, rem = divrem(p.num_games, Distributed.nworkers())
+  num_each, rem = divrem(p.num_games[itc], Distributed.nworkers())
   @assert num_each >= 1
   workers = Distributed.workers()
   tasks = map(workers) do w
@@ -278,7 +278,7 @@ function simulate_distributed(
         simulate(
           simulator,
           gspec,
-          SimParams(p; num_games=(w == workers[1] ? num_each + rem : num_each)),
+          SimParams(p; num_games=ConstSchedule(w == workers[1] ? num_each + rem : num_each)),
           itc,
           game_simulated=remote_game_simulated)
         end

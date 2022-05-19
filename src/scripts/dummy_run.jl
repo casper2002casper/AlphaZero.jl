@@ -12,9 +12,9 @@ dummy_run_player(p::Benchmark.Full) = @set p.params = dummy_run_mcts(p.params)
 dummy_run_player(p::Benchmark.MctsRollouts) = @set p.params = dummy_run_mcts(p.params)
 
 function dummy_run_sim(s::SimParams)
-  s = @set s.num_games = 1
-  s = @set s.num_workers = 1
-  s = @set s.batch_size = 1
+  s = @set s.num_games = ConstSchedule(1)
+  s = @set s.num_workers = ConstSchedule(1)
+  s = @set s.batch_size = ConstSchedule(1)
   s = @set s.use_gpu = false
   return s
 end

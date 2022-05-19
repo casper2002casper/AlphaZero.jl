@@ -22,9 +22,9 @@ import CUDA
 
 function profile_self_play(
   exp::Experiment = Examples.experiments["grid-world"];
-  num_games=200,
-  num_workers=200,
-  batch_size=150,
+  num_games=ConstSchedule(200),
+  num_workers=ConstSchedule(200),
+  batch_size=ConstSchedule(150),
   num_filters=64)
 
   # exp = @set exp.netparams.num_filters = num_filters

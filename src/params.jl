@@ -65,16 +65,16 @@ Parameters for parallel game simulations.
 These parameters are common to self-play data generation, neural network evaluation
 and benchmarking.
 
-| Parameter            | Type                  | Default        |
-|:---------------------|:----------------------|:---------------|
-| `num_games`          | `Int`                 |  -             |
-| `num_workers`        | `Int`                 |  -             |
-| `batch_size `        | `Int`                 |  -             |
-| `use_gpu`            | `Bool`                | `false`        |
-| `fill_batches`       | `Bool`                | `true`         |
-| `flip_probability`   | `Float64`             | `0.`           |
-| `reset_every`        | `Union{Nothing, Int}` | `1`            |
-| `alternate_colors`   | `Float64`             | `false`        |
+| Parameter            | Type                   | Default        |
+|:---------------------|:-----------------------|:---------------|
+| `num_games`          | `AbstractSchedule{Int}`|  -             |
+| `num_workers`        | `Int`                  |  -             |
+| `batch_size `        | `Int`                  |  -             |
+| `use_gpu`            | `Bool`                 | `false`        |
+| `fill_batches`       | `Bool`                 | `true`         |
+| `flip_probability`   | `Float64`              | `0.`           |
+| `reset_every`        | `Union{Nothing, Int}`  | `1`            |
+| `alternate_colors`   | `Float64`              | `false`        |
 
 ## Explanations
 
@@ -91,9 +91,9 @@ and benchmarking.
     then the colors of both players are swapped between each simulated game.
 """
 @kwdef struct SimParams
-  num_games :: Int
-  num_workers :: Int
-  batch_size :: Int
+  num_games :: AbstractSchedule{Int} 
+  num_workers :: AbstractSchedule{Int} 
+  batch_size :: AbstractSchedule{Int} 
   use_gpu :: Bool = false
   fill_batches :: Bool = true
   reset_every :: Union{Nothing, Int} = 1
@@ -368,7 +368,7 @@ function check_params(gspec::AbstractGameSpec, p::Params)
     push!(mctss, p.arena.mcts)
     push!(sims, p.arena.sim)
   end
-  if any(sim.batch_size > sim.num_workers for sim in sims)
+  if any(sim.batch_size[i] > sim.num_workers[i] for sim in sims for i in 1:p.num_iters)
     push!(errors,
       "The number of simulation workers must be " *
       "greater or equal than the inference batch size.")

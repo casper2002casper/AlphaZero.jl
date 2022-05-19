@@ -212,7 +212,7 @@ function run_duel(env::Env, duel; logger)
     legend = Benchmark.name(duel.player)
   end
   Log.section(logger, 2, "Running benchmark: $legend")
-  progress = Log.Progress(logger, duel.sim.num_games)
+  progress = Log.Progress(logger, duel.sim.num_games[env.itc])
   report = Benchmark.run(env, duel, progress)
   show_space_after_progress_bar(logger)
   print_report(
@@ -506,7 +506,7 @@ function Handlers.iteration_started(session::Session)
 end
 
 function Handlers.self_play_started(session::Session)
-  ngames = session.env.params.self_play.sim.num_games
+  ngames = session.env.params.self_play.sim.num_games[session.env.itc]
   Log.section(session.logger, 2, "Starting self-play")
   session.progress = Log.Progress(session.logger, ngames)
 end

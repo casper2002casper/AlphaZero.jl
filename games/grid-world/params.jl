@@ -7,9 +7,9 @@ netparams = NetLib.SimpleNetHP(
 
 self_play = SelfPlayParams(
   sim=SimParams(
-    num_games=1000,
-    num_workers=4,
-    batch_size=4,
+    num_games=ConstSchedule(1000),
+    num_workers=ConstSchedule(4),
+    batch_size=ConstSchedule(4),
     use_gpu=true,
     reset_every=16,
     flip_probability=0.,
@@ -23,9 +23,9 @@ self_play = SelfPlayParams(
 
 arena = ArenaParams(
   sim=SimParams(
-    num_games=100,
-    num_workers=10,
-    batch_size=10,
+    num_games=ConstSchedule(100),
+    num_workers=ConstSchedule(10),
+    batch_size=ConstSchedule(10),
     use_gpu=true,
     reset_every=1,
     flip_probability=0.,
@@ -58,9 +58,9 @@ params = Params(
 
 benchmark_sim = SimParams(
   arena.sim;
-  num_games=10,
-  num_workers=1,
-  batch_size=1)
+  num_games=ConstSchedule(10),
+  num_workers=ConstSchedule(1),
+  batch_size=ConstSchedule(1))
 
 benchmark = [
   Benchmark.Single(

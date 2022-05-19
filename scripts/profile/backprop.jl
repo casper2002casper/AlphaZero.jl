@@ -16,16 +16,16 @@ import CUDA
 function profile_backprop(
     exp::Experiment = Examples.experiments["connect-four"];
     profile=false,
-    num_games=5000,
+    num_games=ConstSchedule(5000),
     num_batches=100,
-    batch_size=1024,
+    batch_size=ConstSchedule(1024),
     num_filters=64)
 
   exp = @set exp.params.learning.batch_size = batch_size
   exp = @set exp.netparams.num_filters = num_filters
   session = Session(exp, autosave=false, dir="sessions/profile-backprop-$(exp.name)")
   env = session.env
-  for i in 1:num_games
+  for i in 1:num_games[session.env.itc]
     trace = play_game(exp.gspec, RandomPlayer())
     AlphaZero.push_trace!(session.env.memory, trace, 1.0)
   end

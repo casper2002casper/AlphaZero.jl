@@ -14,9 +14,9 @@ netparams = NetLib.ResNetHP(
 
 self_play = SelfPlayParams(
   sim=SimParams(
-    num_games=5000,
-    num_workers=128,
-    batch_size=64,
+    num_games=ConstSchedule(5000),
+    num_workers=ConstSchedule(128),
+    batch_size=ConstSchedule(64),
     use_gpu=true,
     reset_every=2,
     flip_probability=0.,
@@ -31,9 +31,9 @@ self_play = SelfPlayParams(
 
 arena = ArenaParams(
   sim=SimParams(
-    num_games=128,
-    num_workers=128,
-    batch_size=128,
+    num_games=ConstSchedule(128),
+    num_workers=ConstSchedule(128),
+    batch_size=ConstSchedule(128),
     use_gpu=true,
     reset_every=2,
     flip_probability=0.5,
@@ -91,9 +91,9 @@ network_player = Benchmark.NetworkOnly(τ=0.5)
 
 benchmark_sim = SimParams(
   arena.sim;
-  num_games=256,
-  num_workers=256,
-  batch_size=256,
+  num_games=ConstSchedule(256),
+  num_workers=ConstSchedule(256),
+  batch_size=ConstSchedule(256),
   alternate_colors=false)
 
 benchmark = [

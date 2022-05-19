@@ -4,9 +4,9 @@ netparams = NetLib.GinHP()
 
 self_play = SelfPlayParams(
   sim=SimParams(
-    num_games=256,
-    num_workers=200,
-    batch_size=100,
+    num_games=ConstSchedule(256),
+    num_workers=ConstSchedule(200),
+    batch_size=ConstSchedule(100),
     use_gpu=true,
     reset_every=1,
     flip_probability=0.,
@@ -46,9 +46,9 @@ params = Params(
 
 benchmark_sim = SimParams(
   self_play.sim;
-  num_games=64,
-  num_workers=44,
-  batch_size=22,
+  num_games=ConstSchedule(64),
+  num_workers=ConstSchedule(44),
+  batch_size=ConstSchedule(22),
   deterministic = true)
 
 benchmark = [
