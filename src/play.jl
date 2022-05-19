@@ -345,6 +345,25 @@ function select_move(::Human, game, turn)
   return a
 end
 
+function play_out(gspec, player, state)
+  game = GI.init(gspec, state)
+  i = 1
+  while true
+    if GI.game_terminated(game)
+      GI.render(game)
+      return
+    end
+    actions, π_target = think(player, game)
+    τ = player_temperature(player, game, i)
+    π_sample = apply_temperature(π_target, τ)
+    a = actions[Util.rand_categorical(π_sample)]
+    GI.play!(game, a)
+    i += 1
+    print(i, "\r")
+  end
+
+end
+
 """
     interactive!(game)
     interactive!(gspec)

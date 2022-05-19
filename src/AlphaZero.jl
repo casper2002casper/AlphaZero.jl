@@ -92,6 +92,7 @@ module AlphaZero
   export EpsilonGreedyPlayer
   export TwoPlayers
   export Human, interactive!
+  export play_out
   export play_game
 
   # Utilities for distributed games simulation

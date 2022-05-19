@@ -52,9 +52,24 @@ module Scripts
   """
   play(s::String; args...) = play(Examples.experiments[s]; args...)
 
+  """
+      solve(experiment; [dir])
+
+  Solve benchmarks using trained agents
+  """
+  solve(s::String; args...) = solve(Examples.experiments[s]; args...)
+
+  function solve(e::Experiment; file_location, args...)
+    session = Session(e; args...)
+    data = open(f->read(f, String), file_location)
+    state = GI.init(e.gspec, data)
+    play_out(e.gspec, AlphaZeroPlayer(session), state)
+  end
+
   include("test_grad_updates.jl")
 
   test_grad_updates(s::String; args...) =
     test_grad_updates(Examples.experiments[s]; args...)
 
+  
 end
