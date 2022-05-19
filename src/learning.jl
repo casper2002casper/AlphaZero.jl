@@ -56,8 +56,7 @@ function convert_samples(
   return map(f32, (; W, X, A, P, V))
 end
 
-function Flux.batch(xs::AbstractVector{<:AbstractVector}, pad)
-  n = maximum(length(x) for x in xs)
+function Flux.batch(xs::AbstractVector{<:AbstractVector}, pad; n=maximum(length(x) for x in xs))
   return stack(rpad.(xs, n, pad), dims=2)
 end
 
@@ -81,7 +80,7 @@ function losses(nn, regws, params, Wmean, Hp, (W, X, A, P, V))
   cinv = params.nonvalidity_penalty
   renorm = params.rewards_renormalization
   P̂, V̂, p_invalid = Network.forward_normalized(nn, X, A)
-  P̂ = batch(P̂, 0)
+  P̂ = Flux.batch(P̂, 0, n=size(P,1))
   V = isone(renorm) ? V : V ./ renorm
   V̂ = isone(renorm) ? V̂ : V̂ ./ renorm
   Lp = klloss_wmean(P̂, P, W) - Hp
