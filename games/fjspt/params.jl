@@ -26,7 +26,7 @@ learning = LearningParams(
   samples_weighing_policy=LOG_WEIGHT,
   l2_regularization=1e-5,
   optimiser=Adam(lr=1e-4),
-  batch_size=2048,
+  batch_size=1300,
   loss_computation_batch_size=2048,
   nonvalidity_penalty=0.,
   min_checkpoints_per_epoch=1,
@@ -60,9 +60,9 @@ benchmark = [
     benchmark_sim)]
 
 experiment = Experiment(
-  "fjspt", GameSpec(PLSchedule([1, 10], [4, 4])=>PLSchedule([1, 10], [4, 4]), 
-                    PLSchedule([1, 10], [4, 4])=>PLSchedule([1, 10], [4, 4]), 
-                    PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 2]), 
+  "fjspt", GameSpec(PLSchedule([1, 10], [2, 4])=>PLSchedule([1, 10], [4, 6]), 
+                    PLSchedule([1, 10], [2, 4])=>PLSchedule([1, 10], [4, 6]), 
+                    PLSchedule([1, 10], [2, 4])=>PLSchedule([1, 10], [4, 6]), 
                     PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 2]), 
                     1=>5,
                     1=>5), params, Network, netparams, benchmark)
