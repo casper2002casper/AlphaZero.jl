@@ -301,12 +301,12 @@ may want to use a `BatchedOracle` along with an inference server that uses
 """
 function evaluate(nn::AbstractNetwork, state)
   gspec = game_spec(nn)
-  actions_mask = GI.actions_mask(GI.init(gspec, state))
-  x = GI.vectorize_state(gspec, state)
-  xnet, anet = to_singletons.(convert_input_tuple(nn, (x, actions_mask)))
+  actions_mask = [GI.actions_mask(GI.init(gspec, state))]
+  x =  Flux.batch([GI.vectorize_state(gspec, state)])
+  xnet, anet = convert_input_tuple(nn, (x, actions_mask))
   net_output = forward_normalized(nn, xnet, anet)
-  p, v, _ = from_singletons.(convert_output_tuple(nn, net_output))
-  return (p, v[1])
+  p, v, _ = convert_output_tuple(nn, net_output)
+  return (p[1], v[1])
 end
 
 (nn::AbstractNetwork)(state) = evaluate(nn, state)
