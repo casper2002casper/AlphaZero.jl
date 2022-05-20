@@ -42,9 +42,13 @@ function convert_samples(
     es::AbstractVector{<:TrainingSample})
   ces = [convert_sample(gspec, wp, e) for e in es]
   W = Flux.batch([e.w for e in ces])
+  @show 1
   X = typeof(ces[1].x) <: Matrix ? Flux.batch([e.x for e in ces]) : [e.x for e in ces] 
+  @show 2
   A = [e.a for e in ces] 
+  @show 3
   P = Flux.batch([e.p for e in ces], 0)
+  @show 4
   V = Flux.batch([e.v for e in ces])
   function f32(arr)
     if typeof(arr) <: Matrix
@@ -107,9 +111,11 @@ struct Trainer
   Wmean :: Float32
   Hp :: Float32
   function Trainer(gspec, network, samples, params; test_mode=false)
+    @show "merging"
     if params.use_position_averaging
       samples = merge_by_state(samples)
     end
+    @show "converting"
     data = convert_samples(gspec, params.samples_weighing_policy, samples)
     network = Network.copy(network, on_gpu=params.use_gpu, test_mode=test_mode)
     W, X, A, P, V = data
@@ -117,6 +123,7 @@ struct Trainer
     Hp = entropy_wmean(P, W)
     # Create a batches stream
     batchsize = min(params.batch_size, length(W))
+    @show "create dataloader"
     dataloader = Flux.Data.DataLoader(data; batchsize, partial=false, shuffle=true)
     return new(network, samples, params, dataloader, Wmean, Hp) 
   end
