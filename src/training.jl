@@ -191,7 +191,6 @@ function dummy_learning_report()
 end
 
 function learning_step!(env::Env, handler)
-  @show "learning step started"
   ap = env.params.arena
   lp = env.params.learning
   checkpoints = Report.Checkpoint[]
