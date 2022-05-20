@@ -57,7 +57,7 @@ function convert_samples(
 end
 
 function Flux.batch(xs::AbstractVector{<:AbstractVector}, pad; n=maximum(length(x) for x in xs))
-  return stack(rpad.(xs, n, pad), dims=2)
+  return Flux.batch(rpad.(xs, n, pad))
 end
 
 #####
