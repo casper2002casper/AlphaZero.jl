@@ -26,7 +26,7 @@ using GraphNeuralNetworks: GCNConv, SAGEConv
 import Zygote
 
 function Flux.unbatch(g::GraphNeuralNetworks.GNNGraph, x) 
-  changes = g.graph_indicator[1:end-1] .!== g.graph_indicator[2:end] 
+  changes = g.graph_indicator[1:end-1] .!= g.graph_indicator[2:end] 
   index =  [0; Array(findall(changes)); length(g.graph_indicator)]
   return [x[index[i]+1:index[i+1]] for i in 1:g.num_graphs]
 end
