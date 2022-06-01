@@ -23,7 +23,7 @@ Hyperparameters for the gin architecture.
 @kwdef struct GinHP
   depth_common :: Int = 12
   depth_phead :: Int = 3
-  depth_vhead :: Int = 3
+  depth_vhead :: Int = 2
   hidden_size :: Int = 64
 end
 
@@ -50,10 +50,10 @@ function Gin(gspec::AbstractGameSpec, hyper::GinHP)
   indim, _ = GI.state_dim(gspec)
   common = GNNChain(GIN_layers(indim, hyper.hidden_size, 3)...)
   vhead = GNNChain(GlobalPool(mean),  
-                   Dense_layers(hyper.hidden_size, 2)...,
+                   Dense_layers(hyper.hidden_size, hyper.depth_vhead)...,
                    Dense(hyper.hidden_size, 1, σ))
   phead = GNNChain(GlobalConcatenation(mean), 
-                   GIN_layers(2*hyper.hidden_size, 32, 2)...,
+                   GIN_layers(2*hyper.hidden_size, 32, hyper.depth_phead)...,
                    Dense(32, 1))
   return Gin(gspec, hyper, common, vhead, phead)
 end
