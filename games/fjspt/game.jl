@@ -404,8 +404,6 @@ end
 function GI.white_reward(g::GameEnv)
   if (all(g.is_done))
     #return -convert(Float32, g.done_time[g.T])
-    @assert g.UB>=g.done_time[g.T]
-    @assert g.UB>=g.LB
     return ((g.UB - g.done_time[g.T]) / (g.UB - g.LB))
   end
   return 0
