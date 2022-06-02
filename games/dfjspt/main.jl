@@ -1,4 +1,4 @@
-module FJSPT
+module DFJSPT
   export GameEnv, GameSpec
   include("game.jl")
   module Training
