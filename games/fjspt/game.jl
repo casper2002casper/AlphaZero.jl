@@ -502,5 +502,6 @@ function GI.render(g::GameEnv)
     print(Crayon(foreground=n), "n", n, " ")
   end
   print(crayon"white", "makespan: ", g.done_time[g.T])
+  print(crayon"white", " reward: ", GI.white_reward(g))
   println(crayon"reset")
 end
