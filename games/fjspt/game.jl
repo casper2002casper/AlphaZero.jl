@@ -414,7 +414,7 @@ function GI.vectorize_state(::GameSpec, state)
   return GNNGraph([state.conj_src; state.disj_src; vec(state.adaptive_nodes.src)],
     [state.conj_tar; state.disj_tar; vec(state.adaptive_nodes.tar)],
     num_nodes=state.S + num_actions,
-    ndata=Float32.([[state.done_time; vec(state.adaptive_nodes.done_time)] [state.is_done; zeros(num_actions)]]'))
+    ndata=Float32.([[state.done_time; vec(state.adaptive_nodes.done_time)]/state.done_time[state.T] [state.is_done; zeros(num_actions)]]'))
 end
 
 #####
