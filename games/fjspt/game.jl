@@ -75,8 +75,8 @@ function gen_action_values(p_time, t_time, conj_tar, start_edges, K, S)
     for (m, m_time) in enumerate(p_time[o÷2, :])
       m_time == 0xff && continue
       for k in 1:K
-        t_node_id = S + length(nodes.done_time) + 1
-        m_node_id = t_node_id + 1
+        t_node_id = UInt8(S + length(nodes.done_time) + 1)
+        m_node_id = t_node_id + 0x1
         nodes.src = [nodes.src; [S S t_node_id m_node_id S]]
         nodes.tar = [nodes.tar; [t_node_id t_node_id m_node_id conj_tar[o] m_node_id]]
         nodes.info = [nodes.info; [m k o i]]
