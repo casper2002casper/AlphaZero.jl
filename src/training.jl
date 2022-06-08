@@ -264,7 +264,7 @@ end
 function simple_memory_stats(env::Env)
   mem = get_experience(env)
   nsamples = length(mem)
-  ndistinct = length(merge_by_state(mem))
+  ndistinct = env.params.learning.use_position_averaging ? length(merge_by_state(mem)) : nsamples 
   return nsamples, ndistinct
 end
 
