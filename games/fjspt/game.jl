@@ -27,11 +27,11 @@ mutable struct AdaptiveNodes
 end
 
 Base.copy(s::AdaptiveNodes) = AdaptiveNodes(copy(s.src), copy(s.tar), copy(s.info), copy(s.done_time))
-Base.isequal(a::AdaptiveNodes, b::AdaptiveNodes) = isequal((a.src, a.tar, a.info, a.done_time), (b.src, b.tar, b.info, b.done_time))
-function Base.hash(s::AdaptiveNodes, h::UInt)
-  fs = (getfield(s, k) for k in fieldnames(AdaptiveNodes))
-  return foldl((h, f) -> hash(f, h), fs, init=hash(AdaptiveNodes, h))
-end
+# Base.isequal(a::AdaptiveNodes, b::AdaptiveNodes) = isequal((a.src, a.tar, a.info, a.done_time), (b.src, b.tar, b.info, b.done_time))
+# function Base.hash(s::AdaptiveNodes, h::UInt)
+#   fs = (getfield(s, k) for k in fieldnames(AdaptiveNodes))
+#   return foldl((h, f) -> hash(f, h), fs, init=hash(AdaptiveNodes, h))
+# end
 
 function generate_conjuctive_edges(num_operations, N_OPP, T, S)
   N = length(num_operations)
@@ -114,6 +114,38 @@ mutable struct GameEnv <: GI.AbstractGameEnv
   start_machine::Vector{UInt8}
   start_vehicle::Vector{UInt8}
 end
+
+function Base.hash(s::GameEnv, h::UInt)
+  return hash([s.disj_src; s.disj_tar], h)
+end
+Base.isequal(a::GameEnv, b::GameEnv) = isequal((a.disj_src, a.disj_tar), (b.disj_src, b.disj_tar))
+
+Base.copy(s::GameEnv) = GameEnv(
+  #Static values
+  s.process_time,
+  s.transport_time,
+  s.M,
+  s.N,
+  s.K,
+  s.N_OPP,
+  s.T,
+  s.S,
+  s.UB,
+  s.LB,
+  s.conj_src,
+  s.conj_tar,
+  #Mutable values
+  copy(s.disj_src),
+  copy(s.disj_tar),
+  copy(s.is_done),
+  copy(s.done_time),
+  copy(s.adaptive_nodes),
+  copy(s.prev_operation),
+  copy(s.prev_machine),
+  copy(s.prev_vehicle),
+  copy(s.start_machine),
+  copy(s.start_vehicle)
+)
 
 function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
   N = rand(rng, spec.N.first[itc]:spec.N.second[itc])
@@ -218,32 +250,7 @@ function GI.init(spec::GameSpec, instance_string::String)
   )
 end
 
-GI.init(spec::GameSpec, s) = GameEnv(
-  #Static values
-  s.process_time,
-  s.transport_time,
-  s.M,
-  s.N,
-  s.K,
-  s.N_OPP,
-  s.T,
-  s.S,
-  s.UB,
-  s.LB,
-  s.conj_src,
-  s.conj_tar,
-  #Mutable values
-  copy(s.disj_src),
-  copy(s.disj_tar),
-  copy(s.is_done),
-  copy(s.done_time),
-  copy(s.adaptive_nodes),
-  copy(s.prev_operation),
-  copy(s.prev_machine),
-  copy(s.prev_vehicle),
-  copy(s.start_machine),
-  copy(s.start_vehicle)
-)
+GI.init(spec::GameSpec, s) = copy(s)
 
 GI.spec(g::GameEnv) = GameSpec(ConstSchedule(g.M) => ConstSchedule(g.M), ConstSchedule(g.N) => ConstSchedule(g.N), ConstSchedule(2) => ConstSchedule(2), ConstSchedule(2) => ConstSchedule(2), 1 => 5, 1 => 5)
 
@@ -252,18 +259,6 @@ GI.two_players(::GameSpec) = false
 GI.state_dim(spec::GameSpec) = (2, (spec.M.second[1] * spec.N.second[1] + 2))#Opperations + source and sink
 
 function GI.set_state!(g::GameEnv, s)
-  g.process_time = s.process_time
-  g.transport_time = s.transport_time
-  g.M = s.M
-  g.N = s.N
-  g.K = s.K
-  g.N_OPP = s.N_OPP
-  g.T = s.T
-  g.S = s.S
-  g.UB = s.UB
-  g.LB = s.LB
-  g.conj_src = s.conj_src
-  g.conj_tar = s.conj_tar
   g.disj_src = copy(s.disj_src)
   g.disj_tar = copy(s.disj_tar)
   g.is_done = copy(s.is_done)
@@ -276,30 +271,7 @@ function GI.set_state!(g::GameEnv, s)
   g.start_vehicle = copy(s.start_vehicle)
 end
 
-GI.current_state(g::GameEnv) = (
-  process_time=g.process_time,
-  transport_time=g.transport_time,
-  M=g.M,
-  N=g.N,
-  K=g.K,
-  N_OPP=g.N_OPP,
-  T=g.T,
-  S=g.S,
-  UB=g.UB,
-  LB=g.LB,
-  conj_src=g.conj_src,
-  conj_tar=g.conj_tar,
-  disj_src=copy(g.disj_src),
-  disj_tar=copy(g.disj_tar),
-  is_done=copy(g.is_done),
-  done_time=copy(g.done_time),
-  adaptive_nodes=copy(g.adaptive_nodes),
-  prev_operation=copy(g.prev_operation),
-  prev_machine=copy(g.prev_machine),
-  prev_vehicle=copy(g.prev_vehicle),
-  start_machine=copy(g.start_machine),
-  start_vehicle=copy(g.start_vehicle)
-)
+GI.current_state(g::GameEnv) = copy(g)
 
 GI.white_playing(g::GameEnv) = true
 
