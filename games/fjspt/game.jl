@@ -70,8 +70,8 @@ function gen_action_values(p_time, t_time, conj_tar, start_edges, K, S)
       for k in 1:K
         t_node_id = UInt8(S + length(nodes.done_time) + 1)
         m_node_id = t_node_id + 0x1
-        nodes.src = [nodes.src; [S S t_node_id m_node_id S]]
-        nodes.tar = [nodes.tar; [t_node_id t_node_id m_node_id conj_tar[o] m_node_id]]
+        nodes.src = [nodes.src; [S t_node_id t_node_id m_node_id m_node_id]]
+        nodes.tar = [nodes.tar; [t_node_id S m_node_id conj_tar[o] S]]
         nodes.info = [nodes.info; [m k o i]]
         nodes.done_time = [nodes.done_time; [t_time[end, m] t_time[end, m] + m_time]]
       end
@@ -272,14 +272,14 @@ GI.game_terminated(g::GameEnv) = g.is_done[g.T]
 
 GI.actions(spec::GameSpec) = collect(1:(spec.M.second[1]*spec.N.second[1]+2))
 
-GI.available_actions(g::GameEnv) = collect(g.S+2:2:g.S+length(g.adaptive_nodes.done_time))
+GI.available_actions(g::GameEnv) = collect(g.S+1:2:g.S+length(g.adaptive_nodes.done_time)-1)
 
-GI.actions_mask(g::GameEnv) = [falses(g.S); repeat([false, true], size(g.adaptive_nodes.done_time, 1))]#fix
+GI.actions_mask(g::GameEnv) = [falses(g.S); repeat([true, false], size(g.adaptive_nodes.done_time, 1))]
 
 
 function GI.play!(g::GameEnv, action)
   #mark operation scheduled
-  m, k, o, i = g.adaptive_nodes.info[(action-g.S)÷2, :]
+  m, k, o, i = g.adaptive_nodes.info[(action+1-g.S)÷2, :]
   t = o - 0x1
   @assert g.is_done[o] == false
   g.is_done[o] = true
@@ -309,18 +309,18 @@ function GI.play!(g::GameEnv, action)
   g.adaptive_nodes.info = g.adaptive_nodes.info[mask, :]
   g.adaptive_nodes.done_time = g.adaptive_nodes.done_time[mask, :]
   #fix disjunctive edges 
-  g.adaptive_nodes.src[g.adaptive_nodes.info[:, 2].==k, 2] .= t
-  g.adaptive_nodes.src[g.adaptive_nodes.info[:, 1].==m, 5] .= o
+  g.adaptive_nodes.tar[g.adaptive_nodes.info[:, 2].==k, 2] .= t
+  g.adaptive_nodes.tar[g.adaptive_nodes.info[:, 1].==m, 5] .= o
   #fix node ids
   num_adaptive_nodes = size(g.adaptive_nodes.done_time, 1) * 2
   t_ids = collect(UInt8, g.S+1:2:g.S+num_adaptive_nodes)
   m_ids = t_ids .+ 0x1
   g.adaptive_nodes.tar[:, 1] = t_ids
-  g.adaptive_nodes.tar[:, 2] = t_ids
+  g.adaptive_nodes.src[:, 2] = t_ids
   g.adaptive_nodes.src[:, 3] = t_ids
-  g.adaptive_nodes.src[:, 4] = m_ids
   g.adaptive_nodes.tar[:, 3] = m_ids
-  g.adaptive_nodes.tar[:, 5] = m_ids
+  g.adaptive_nodes.src[:, 4] = m_ids
+  g.adaptive_nodes.src[:, 5] = m_ids
   #add new actions
   next_t = g.conj_tar[o]
   next_o = g.conj_tar[next_t]
@@ -331,8 +331,8 @@ function GI.play!(g::GameEnv, action)
       for k in 1:g.K
         t_node_id = UInt8(g.S + length(g.adaptive_nodes.done_time) + 1)
         m_node_id = UInt8(t_node_id + 1)
-        g.adaptive_nodes.src = [g.adaptive_nodes.src; [o g.prev_vehicle[k] t_node_id m_node_id g.prev_machine[p_m]]]
-        g.adaptive_nodes.tar = [g.adaptive_nodes.tar; [t_node_id t_node_id m_node_id next_next_t m_node_id]]
+        g.adaptive_nodes.src = [g.adaptive_nodes.src; [o t_node_id t_node_id m_node_id m_node_id]]
+        g.adaptive_nodes.tar = [g.adaptive_nodes.tar; [t_node_id g.prev_vehicle[k] m_node_id next_next_t g.prev_machine[p_m]]]
         g.adaptive_nodes.info = [g.adaptive_nodes.info; [p_m k next_o i]]
         transport_done = g.done_time[o] + g.transport_time[m, p_m]
         g.adaptive_nodes.done_time = [g.adaptive_nodes.done_time; [transport_done transport_done + p_time]]
@@ -380,8 +380,8 @@ function GI.vectorize_state(::GameSpec, state)
   is_opperation = [repeat([0; 1], state.N_OPP); zeros(state.N); 0; 0; repeat([0; 1], size(state.adaptive_nodes.done_time, 1))]
   is_source = [zeros(state.S-1); 1; zeros(length(state.adaptive_nodes.done_time))]
   is_sink = [zeros(state.T-1); 1; zeros(length(state.adaptive_nodes.done_time)+1)]
-  return GNNGraph([state.conj_src; state.disj_src; vec(state.adaptive_nodes.src)],
-    [state.conj_tar; state.disj_tar; vec(state.adaptive_nodes.tar)],
+  return GNNGraph([state.conj_tar; state.disj_src; vec(state.adaptive_nodes.tar)],
+    [state.conj_src; state.disj_tar; vec(state.adaptive_nodes.src)],
     num_nodes=state.S + num_actions,
     ndata=Float32.([done_time is_done is_transport is_opperation is_source is_sink]'))
 end
