@@ -6,8 +6,6 @@ using Crayons
 using JSON3
 using StructTypes
 
-o2ji(o, M, N) = CartesianIndices((M, N))[o]
-ji2o(j, i, M, N) = LinearIndices((M, N))[j, i]
 
 
 struct GameSpec <: GI.AbstractGameSpec
@@ -27,15 +25,10 @@ mutable struct AdaptiveNodes
 end
 
 Base.copy(s::AdaptiveNodes) = AdaptiveNodes(copy(s.src), copy(s.tar), copy(s.info), copy(s.done_time))
-# Base.isequal(a::AdaptiveNodes, b::AdaptiveNodes) = isequal((a.src, a.tar, a.info, a.done_time), (b.src, b.tar, b.info, b.done_time))
-# function Base.hash(s::AdaptiveNodes, h::UInt)
-#   fs = (getfield(s, k) for k in fieldnames(AdaptiveNodes))
-#   return foldl((h, f) -> hash(f, h), fs, init=hash(AdaptiveNodes, h))
-# end
 
 function generate_conjuctive_edges(num_operations, N_OPP, T, S)
   N = length(num_operations)
-  target = [collect(UInt8, 2:N_OPP*2+1); repeat([T], N+1); zeros(UInt8, N)]
+  target = [collect(UInt8, 2:N_OPP*2+1); repeat([T], N + 1); zeros(UInt8, N)]
   index = 1
   for (i, num) in enumerate(num_operations)
     target[S+i-1] = index
@@ -162,7 +155,7 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
   end
   t_time = rand(rng, spec.T.first:spec.T.second, M + 1, M + 1)
   for m in 1:M+1
-    t_time[m,m] = 0x00
+    t_time[m, m] = 0x00
   end
   conj_tar = generate_conjuctive_edges(num_operations, N_OPP, T, S) #fix
   start_edges_n = collect(0:N-1) .+ S
@@ -180,7 +173,7 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
     S,
     sum(maximum(replace(p_time, 0xff => 0x00), dims=2)) + maximum(t_time) * (2 * N_OPP + N), #All worst operations in a row,
     node_done[T],
-    [collect(1:N_OPP*2 + N); T; S * ones(N)],
+    [collect(1:N_OPP*2+N); T; S * ones(N)],
     conj_tar,
     #State
     [],
@@ -233,7 +226,7 @@ function GI.init(spec::GameSpec, instance_string::String)
     S,
     sum(maximum(replace(p_time, 0xff => 0x00), dims=2)) + maximum(t_time) * (2 * N_OPP + N), #All worst operations in a row,
     node_done[T],
-    [collect(1:N_OPP*2 + N); T; S * ones(N)],
+    [collect(1:N_OPP*2+N); T; S * ones(N)],
     conj_tar,
     #State
     [],
@@ -256,7 +249,7 @@ GI.spec(g::GameEnv) = GameSpec(ConstSchedule(g.M) => ConstSchedule(g.M), ConstSc
 
 GI.two_players(::GameSpec) = false
 
-GI.state_dim(spec::GameSpec) = (2, (spec.M.second[1] * spec.N.second[1] + 2))#Opperations + source and sink
+GI.state_dim(spec::GameSpec) = (6, (spec.M.second[1] * spec.N.second[1] + 2))#Opperations + source and sink
 
 function GI.set_state!(g::GameEnv, s)
   g.disj_src = copy(s.disj_src)
@@ -351,7 +344,7 @@ function GI.play!(g::GameEnv, action)
     g.is_done[next_t] = true
     append!(g.disj_src, t)
     append!(g.disj_tar, next_t)
-    g.prev_vehicle[k, :] = [next_t, g.M+1]
+    g.prev_vehicle[k, :] = [next_t, g.M + 1]
   end
   #mark last node as done
   isempty(g.adaptive_nodes.done_time) && (g.is_done[g.T] = true)
@@ -383,10 +376,16 @@ end
 
 function GI.vectorize_state(::GameSpec, state)
   num_actions = length(state.adaptive_nodes.done_time)
+  done_time = [state.done_time; vec(state.adaptive_nodes.done_time)] / state.done_time[state.T]
+  is_done = [state.is_done; zeros(num_actions)]
+  is_transport = [repeat([1; 0], state.N_OPP); ones(state.N); 0; 0; repeat([1; 0], size(state.adaptive_nodes.done_time, 1))]
+  is_opperation = [repeat([0; 1], state.N_OPP); zeros(state.N); 0; 0; repeat([0; 1], size(state.adaptive_nodes.done_time, 1))]
+  is_source = [zeros(state.S-1); 1; zeros(length(state.adaptive_nodes.done_time))]
+  is_sink = [zeros(state.T-1); 1; zeros(length(state.adaptive_nodes.done_time)+1)]
   return GNNGraph([state.conj_src; state.disj_src; vec(state.adaptive_nodes.src)],
     [state.conj_tar; state.disj_tar; vec(state.adaptive_nodes.tar)],
     num_nodes=state.S + num_actions,
-    ndata=Float32.([[state.done_time; vec(state.adaptive_nodes.done_time)]/state.done_time[state.T] [state.is_done; zeros(num_actions)]]'))
+    ndata=Float32.([done_time is_done is_transport is_opperation is_source is_sink]'))
 end
 
 #####
@@ -422,7 +421,7 @@ function GI.render(g::GameEnv)
     print(crayon"white", "m", m, ":")
     last_done = 0
     while (!iszero(o))
-      i = count(>(g.N_OPP*2), g.conj_tar[1:o-1])+1
+      i = count(>(g.N_OPP * 2), g.conj_tar[1:o-1]) + 1
       idle = (crayon"dark_gray", repeat("-", g.done_time[o] - g.process_time[o÷2, m] - last_done))
       active = (Crayon(foreground=i), repeat("=", g.process_time[o÷2, m]))
       print(idle..., active...)
@@ -430,7 +429,7 @@ function GI.render(g::GameEnv)
       m_opperation[o÷2] = m
       #get next operation for machine
       index = findfirst(isequal(o), g.disj_src)
-      if(isnothing(index))
+      if (isnothing(index))
         break
       end
       o = g.disj_tar[index]
@@ -442,20 +441,20 @@ function GI.render(g::GameEnv)
   for (k, t) in enumerate(g.start_vehicle)
     print(crayon"white", "k", k, ":")
     last_done = 0
-    location = g.M+1
+    location = g.M + 1
     while (!iszero(t))
-      if(t<=g.N_OPP*2)
-        i = count(>(g.N_OPP*2), g.conj_tar[1:t])+1
+      if (t <= g.N_OPP * 2)
+        i = count(>(g.N_OPP * 2), g.conj_tar[1:t]) + 1
         dropoff = m_opperation[(t+1)÷2]
       else
         i = Int64(g.T - t)
         dropoff = g.M + 1
       end
       pickup_index = findfirst(isequal(t), g.conj_tar)
-      pickup = pickup_index>g.N_OPP*2 ? g.M+1 : m_opperation[pickup_index÷2]
+      pickup = pickup_index > g.N_OPP * 2 ? g.M + 1 : m_opperation[pickup_index÷2]
       empty_time = g.transport_time[location, pickup]
       loaded_time = g.transport_time[pickup, dropoff]
-      idle = (crayon"dark_gray", repeat("-", g.done_time[t] - last_done - empty_time  - loaded_time))
+      idle = (crayon"dark_gray", repeat("-", g.done_time[t] - last_done - empty_time - loaded_time))
       empty = (crayon"dark_gray", repeat("=", empty_time))
       loaded = (Crayon(foreground=i), repeat("=", loaded_time))
       print(idle..., empty..., loaded...)
