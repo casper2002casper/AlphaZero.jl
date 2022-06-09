@@ -295,10 +295,8 @@ function GI.play!(g::GameEnv, action)
   iszero(g.start_machine[m]) && (g.start_machine[m] = o)
   iszero(g.start_vehicle[k]) && (g.start_vehicle[k] = t)
   #add disjunctive link
-  if(!isequal(m_l, m))
-    append!(g.disj_src, u)
-    append!(g.disj_tar, t)
-  end
+  append!(g.disj_src, u)
+  append!(g.disj_tar, t)
   append!(g.disj_src, p)
   append!(g.disj_tar, o)
   #set done time
