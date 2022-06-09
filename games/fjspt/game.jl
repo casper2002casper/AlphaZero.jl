@@ -1,12 +1,12 @@
 import AlphaZero.GI
+import Cairo, Fontconfig
 using AlphaZero: AbstractSchedule, ConstSchedule
 using GraphNeuralNetworks
 using Random
 using Crayons
 using JSON3
 using StructTypes
-
-
+using GraphPlot, Compose, Graphs, Colors
 
 struct GameSpec <: GI.AbstractGameSpec
   M::Pair{AbstractSchedule,AbstractSchedule}
@@ -393,17 +393,13 @@ end
 #####
 
 function GI.action_string(spec::GameSpec, o)
-  mn = o2ji(o, spec.M.second, spec.N.second)
-  return string("job: ", mn[2], " machine: ", mn[1])
+  return string(o)
 end
 
 function GI.parse_action(spec::GameSpec, str)
   try
     s = split(str)
-    @assert length(s) == 2
-    n = parse(Int, s[1])
-    m = parse(Int, s[2])
-    return ji2o(m, n, spec.M.second, spec.N.second)
+    return 1
   catch e
     return nothing
   end
@@ -475,4 +471,10 @@ function GI.render(g::GameEnv)
   print(crayon"white", "makespan: ", g.done_time[g.T])
   print(crayon"white", " reward: ", GI.white_reward(g))
   println(crayon"reset")
+  #print graph
+  graph = GI.vectorize_state(GI.spec(g), g)
+  membership = [repeat([1; 2], g.N_OPP); repeat([3], g.N); 4; 5; repeat([1; 2], size(g.adaptive_nodes.done_time, 1))]
+  nodecolor = [colorant"deepskyblue1", colorant"royalblue4", colorant"orange", colorant"red", colorant"green"]
+  nodefillc = nodecolor[membership]
+  draw(PNG("games/fjspt/graphs/graph" * string(count(g.is_done[1:(g.N_OPP*2)]) ÷ 2) * ".png", 50cm, 50cm), gplot(graph, nodelabel=1:nv(graph), nodefillc=nodefillc))
 end
