@@ -123,7 +123,7 @@ end
 regularized_params_(l) = []
 regularized_params_(l::GraphNeuralNetworks.GCNConv) = [l.weight, l.bias]
 regularized_params_(l::GraphNeuralNetworks.SAGEConv) = [l.weight, l.bias]
-regularized_params_(l::Flux.Dense) = [l.weight]
+regularized_params_(l::Flux.Dense) = [l.weight, l.bias]
 regularized_params_(l::Flux.Conv) = [l.weight]
 
 function Network.regularized_params(net::FluxNetwork)
@@ -157,7 +157,7 @@ abstract type TwoHeadGraphNeuralNetwork <: TwoHeadNetwork end
 Network.params(nn::TwoHeadNetwork) = [Flux.params(nn.common), Flux.params(nn.vhead), Flux.params(nn.phead)]
 
 function Network.set_params!(nn::TwoHeadNetwork, weights) 
-  Flux.loadparams!(nn.common,weights[1])
+  Flux.loadparams!(nn.common, weights[1])
   Flux.loadparams!(nn.vhead, weights[2])
   Flux.loadparams!(nn.phead, weights[3])
 end
