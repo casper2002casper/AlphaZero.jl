@@ -144,7 +144,7 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
   N = rand(rng, spec.N.first[itc]:spec.N.second[itc])
   M = rand(rng, spec.M.first[itc]:spec.M.second[itc])
   K = rand(rng, spec.K.first[itc]:spec.K.second[itc])
-  num_operations = [rand(rng, 1:M) for _ in 1:N]
+  num_operations = rand(rng, 1:M, N)
   N_OPP = sum(num_operations)
   T = N_OPP * 2 + N + 1
   S = N_OPP * 2 + N + 2
@@ -157,9 +157,9 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
   for m in 1:M+1
     t_time[m, m] = 0x00
   end
-  conj_tar = generate_conjuctive_edges(num_operations, N_OPP, T, S) #fix
+  conj_tar = generate_conjuctive_edges(num_operations, N_OPP, T, S)
   start_edges_n = collect(0:N-1) .+ S
-  node_done = gen_done_time(p_time, t_time, conj_tar, start_edges_n, S, T) #fix
+  node_done = gen_done_time(p_time, t_time, conj_tar, start_edges_n, S, T)
   adaptive_nodes = gen_action_values(p_time, t_time, conj_tar, start_edges_n, K, S)
   return GameEnv(
     #Problem instance
@@ -250,6 +250,8 @@ GI.spec(g::GameEnv) = GameSpec(ConstSchedule(g.M) => ConstSchedule(g.M), ConstSc
 GI.two_players(::GameSpec) = false
 
 GI.state_dim(spec::GameSpec) = (6, (spec.M.second[1] * spec.N.second[1] + 2))#Opperations + source and sink
+
+GI.state_type(spec::GameSpec) = return GameEnv
 
 function GI.set_state!(g::GameEnv, s)
   g.disj_src = copy(s.disj_src)

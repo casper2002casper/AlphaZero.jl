@@ -270,7 +270,7 @@ end
 
 # To be given as an argument to `Simulator`
 function self_play_measurements(trace, _, player)
-  mem = MCTS.approximate_memory_footprint(player.mcts)
+  mem = 0#MCTS.approximate_memory_footprint(player.mcts)
   edepth = MCTS.average_exploration_depth(player.mcts)
   return (trace=trace, mem=mem, edepth=edepth)
 end
