@@ -81,10 +81,8 @@ function losses(nn, regws, params, Wmean, Hp, (W, X, A, P, V))
   renorm = params.rewards_renormalization
   P̂, V̂, p_invalid = Network.forward_normalized(nn, X, A)
   P̂ = Flux.batch(P̂, 0, n=size(P,1))
-  V = isone(renorm) ? V : V ./ renorm
-  V̂ = isone(renorm) ? V̂ : V̂ ./ renorm
   Lp = klloss_wmean(P̂, P, W) - Hp
-  Lv = mse_wmean(V̂, V, W)
+  Lv = mse_wmean(V̂, V, W)/renorm^2
   Lreg = iszero(creg) ?
     zero(Lv) :
     creg * sum(sum(w .* w) for w in regws)
