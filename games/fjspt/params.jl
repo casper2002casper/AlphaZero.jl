@@ -55,7 +55,7 @@ benchmark = [
   update_threshold=0.01)
 
 params = Params(
-  arena=nothing,
+  arena=arena,
   self_play=self_play,
   learning=learning,
   num_iters=500,

@@ -173,7 +173,7 @@ end
 
 function learning_status(tr::Trainer)
   batchsize = min(tr.params.loss_computation_batch_size, num_samples(tr))
-  batches = MLUtils.DataLoader(tr.dataloader.data; batchsize, partial=true)
+  batches = MLUtils.BatchView(tr.dataloader.data; batchsize, partial=true)
   reports = []
   ws = []
   for batch in batches
