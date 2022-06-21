@@ -541,7 +541,7 @@ end
 
 function Handlers.checkpoint_started(session::Session)
   Log.section(session.logger, 3, "Launching a checkpoint evaluation")
-  num_games = session.env.params.arena.sim.num_games
+  num_games = session.env.params.arena.sim.num_games[session.env.itc]
   # In single player games, each game has to be played twice (with both networks)
   n = GI.two_players(session.env.gspec) ? num_games : 2 * num_games
   session.progress = Log.Progress(session.logger, n)
