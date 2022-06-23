@@ -289,15 +289,13 @@ function self_play_step!(env::Env, handler)
     game_simulated=()->Handlers.game_played(handler))
   # Add the collected samples in memory
   new_batch!(env.memory)
-  for x in results
-    push_trace!(env.memory, x.trace, params.mcts.gamma)
-  end
+  average_reward = mean([push_trace!(env.memory, x.trace, params.mcts.gamma) for x in results])
   speed = cur_batch_size(env.memory) / elapsed
   edepth = mean([x.edepth for x in results])
   mem_footprint = maximum([x.mem for x in results])
   memsize, memdistinct = simple_memory_stats(env)
   report = Report.SelfPlay(
-    speed, edepth, mem_footprint, memsize, memdistinct)
+    speed, edepth, average_reward, mem_footprint, memsize, memdistinct)
   Handlers.self_play_finished(handler, report)
   return report
 end

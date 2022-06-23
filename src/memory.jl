@@ -78,12 +78,13 @@ function push_trace!(mem::MemoryBuffer, trace, gamma)
     wr = gamma * wr + trace.rewards[i]
     s = trace.states[i]
     π = trace.policies[i]
-    wp = GI.white_playing(GI.init(mem.gspec, s))
+    wp = GI.two_players(mem.gspec) ? GI.white_playing(GI.init(mem.gspec, s)) : true
     z = wp ? wr : -wr
     t = float(n - i + 1)
     push!(mem.buf, TrainingSample(s, π, z, t, 1))
   end
   mem.cur_batch_size += n
+  return wr
 end
 
 function merge_samples(samples)

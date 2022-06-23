@@ -203,6 +203,7 @@ Report generated after the self-play phase of an iteration.
 struct SelfPlay
   samples_gen_speed :: Float64
   average_exploration_depth :: Float64
+  average_reward :: Float64
   mcts_memory_footprint :: Int
   memory_size :: Int
   memory_num_distinct_boards :: Int
