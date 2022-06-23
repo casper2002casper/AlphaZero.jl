@@ -15,9 +15,9 @@ self_play = SelfPlayParams(
     num_iters_per_turn=600,
     cpuct=1.0,
     adaptive_cpuct = false,
-    temperature=ConstSchedule(0.05),
-    dirichlet_noise_ϵ=0.,
-    dirichlet_noise_α=0.2))
+    temperature=PLSchedule([1, 10], [1.0, 0.0]),
+    dirichlet_noise_ϵ=0.25,
+    dirichlet_noise_α=0.05))
 
 
 learning = LearningParams(
@@ -43,7 +43,7 @@ benchmark_sim = SimParams(
 
 benchmark = [
   Benchmark.Single(
-    Benchmark.Full(MctsParams(self_play.mcts, temperature=ConstSchedule(0.))),
+    Benchmark.Full(MctsParams(self_play.mcts, temperature=ConstSchedule(0.),  dirichlet_noise_ϵ=0.)),
     benchmark_sim),
   Benchmark.Single(
     Benchmark.NetworkOnly(),
@@ -51,11 +51,11 @@ benchmark = [
 
   arena = ArenaParams(
   sim=benchmark_sim,
-  mcts=MctsParams(self_play.mcts, temperature=ConstSchedule(0.)),
+  mcts=MctsParams(self_play.mcts, temperature=ConstSchedule(0.),  dirichlet_noise_ϵ=0.),
   update_threshold=0.01)
 
 params = Params(
-  arena=arena,
+  arena=nothing,
   self_play=self_play,
   learning=learning,
   num_iters=500,
