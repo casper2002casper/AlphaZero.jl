@@ -101,27 +101,21 @@ function save_env(env::Env, dir)
   open(joinpath(dir, NET_PARAMS_FILE), "w") do io
     JSON3.pretty(io, JSON3.write(Network.hyperparams(env.bestnn)))
   end
-  serialize(joinpath(dir, BESTNN_FILE), Network.params(env.bestnn))
-  serialize(joinpath(dir, CURNN_FILE), Network.params(env.curnn))
+  serialize(joinpath(dir, BESTNN_FILE), env.bestnn)
+  serialize(joinpath(dir, CURNN_FILE), env.curnn)
   serialize(joinpath(dir, MEM_FILE), get_experience(env))
   open(joinpath(dir, ITC_FILE), "w") do io
     JSON3.write(io, env.itc)
   end
 end
 
-function load_nn(location, e::Experiment)
-  nn = e.mknet(e.gspec, e.netparams)
-  params = deserialize(location)
-  Network.set_params!(nn, params)
-  return nn
-end
 
-function load_env(dir , e::Experiment)
+
+function load_env(dir)
   gspec = deserialize(joinpath(dir, GSPEC_FILE))
   params = deserialize(joinpath(dir, PARAMS_FILE))
-  
-  curnn = load_nn(joinpath(dir, CURNN_FILE), e)
-  bestnn = load_nn(joinpath(dir, BESTNN_FILE), e)
+  curnn = deserialize(joinpath(dir, CURNN_FILE))
+  bestnn = deserialize(joinpath(dir, BESTNN_FILE))
   experience = deserialize(joinpath(dir, MEM_FILE))
   itc = open(JSON3.read, joinpath(dir, ITC_FILE), "r") 
   return Env(gspec, params, curnn, bestnn, experience, itc)
@@ -300,7 +294,7 @@ function Session(
   logger = session_logger(dir, nostdout, autosave)
   if valid_session_dir(dir)
     Log.section(logger, 1, "Loading environment from: $dir")
-    env = load_env(dir, e)
+    env = load_env(dir)
     # The parameters must be unchanged
     same_json(x, y) = JSON3.write(x) == JSON3.write(y)
     same_json(env.params, e.params) || @info "Using modified parameters"
