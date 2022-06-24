@@ -278,7 +278,6 @@ GI.available_actions(g::GameEnv) = collect(g.S+1:2:g.S+length(g.adaptive_nodes.d
 
 GI.actions_mask(g::GameEnv) = [falses(g.S); repeat([true, false], size(g.adaptive_nodes.done_time, 1))]
 
-
 function GI.play!(g::GameEnv, action)
   #mark operation scheduled
   m, k, o, i = g.adaptive_nodes.info[(action+1-g.S)÷2, :]
@@ -334,7 +333,7 @@ function GI.play!(g::GameEnv, action)
         t_node_id = UInt8(g.S + length(g.adaptive_nodes.done_time) + 1)
         m_node_id = UInt8(t_node_id + 1)
         g.adaptive_nodes.src = [g.adaptive_nodes.src; [o t_node_id t_node_id m_node_id m_node_id]]
-        g.adaptive_nodes.tar = [g.adaptive_nodes.tar; [t_node_id g.prev_vehicle[k] m_node_id next_next_t g.prev_machine[p_m]]]
+        g.adaptive_nodes.tar = [g.adaptive_nodes.tar; [t_node_id g.prev_vehicle[k, 1] m_node_id next_next_t g.prev_machine[p_m]]]
         g.adaptive_nodes.info = [g.adaptive_nodes.info; [p_m k next_o i]]
         transport_done = g.done_time[o] + g.transport_time[m, p_m]
         g.adaptive_nodes.done_time = [g.adaptive_nodes.done_time; [transport_done transport_done + p_time]]
