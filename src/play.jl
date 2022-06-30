@@ -316,6 +316,9 @@ function play_game(gspec, player; flip_probability=0., itc=1, rng::AbstractRNG=R
     a = actions[Util.rand_categorical(π_sample)]
     GI.play!(game, a)
     push!(trace, π_target, GI.white_reward(game), GI.current_state(game))
+    if(GI.disturbe!(gspec, game, rng, itc))
+      reset_player!(player)
+    end
   end
 end
 
