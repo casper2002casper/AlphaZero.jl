@@ -59,11 +59,15 @@ module Scripts
   """
   solve(s::String; args...) = solve(Examples.experiments[s]; args...)
 
-  function solve(e::Experiment; file_location, args...)
+  function solve(e::Experiment; file_location, niters = e.params.self_play.mcts.num_iters_per_turn, cpuct = e.params.self_play.mcts.cpuct, args...)
     session = Session(e; args...)
     data = open(f->read(f, String), file_location)
     state = GI.init(e.gspec, data)
-    play_out(e.gspec, AlphaZeroPlayer(session), state)
+    params = e.params.self_play.mcts
+    params = @set params.num_iters_per_turn = niters
+    params = @set params.cpuct = cpuct
+    params = @set params.temperature = ConstSchedule(0.)
+    play_out(e.gspec, AlphaZeroPlayer(session, mcts_params=params), state)
   end
 
   include("test_grad_updates.jl")
