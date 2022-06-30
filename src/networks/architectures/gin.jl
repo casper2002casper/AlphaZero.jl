@@ -23,7 +23,7 @@ Hyperparameters for the gin architecture.
 @kwdef struct GinHP
   depth_common :: Int = 10
   depth_phead :: Int = 3
-  depth_vhead :: Int = 2
+  depth_vhead :: Int = 5
   hidden_size :: Int = 32
 end
 
@@ -41,20 +41,21 @@ mutable struct Gin <: TwoHeadGraphNeuralNetwork
 end
 
 function Gin(gspec::AbstractGameSpec, hyper::GinHP)
-  Dense_layers(size, depth) = [Dense(size, size, relu) for _ in 1:depth]
-  f(in, out) = Chain(Dense(in, out, relu),
-                    Dense_layers(out, 2)..., 
-                    BatchNorm(out, relu))
-  GIN_layers(in, out, depth) = [GNNChain(GINConv(f(i==1 ? in : out, out), 0)) for i in 1:depth]
+  Dense_layers(in, hidden, out, depth) = [Dense((i==1) ? in : hidden, (i==depth) ? out : hidden, relu) for i in 1:depth]
+  f(size) = Chain(Dense_layers(size, size, size, 5)..., 
+                  BatchNorm(size, relu))
+  GIN_layers(size, depth) = [GNNChain(GINConv(f(size), 0)) for _ in 1:depth]
 
   indim, _ = GI.state_dim(gspec)
-  common = GNNChain(GIN_layers(indim, hyper.hidden_size, hyper.depth_common)...)
+  common = GNNChain(Dense_layers(indim, hyper.hidden_size*2, hyper.hidden_size, 5)...,
+                    GIN_layers(hyper.hidden_size, hyper.depth_common)...)
   vhead = GNNChain(GlobalPool(mean),  
-                   Dense_layers(hyper.hidden_size, hyper.depth_vhead)...,
+                   Dense_layers(hyper.hidden_size, hyper.hidden_size, hyper.hidden_size, hyper.depth_vhead)...,
                    Dense(hyper.hidden_size, 1, σ))
   phead = GNNChain(GlobalConcatenation(mean), 
-                   GIN_layers(2*hyper.hidden_size, 32, hyper.depth_phead)...,
-                   Dense(32, 1))
+                   Dense(hyper.hidden_size*2, hyper.hidden_size, relu),
+                   GIN_layers(hyper.hidden_size, hyper.depth_phead)...,
+                   Dense(hyper.hidden_size, 1))
   return Gin(gspec, hyper, common, vhead, phead)
 end
 
