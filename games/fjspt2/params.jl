@@ -65,7 +65,7 @@ params = Params(
   mem_buffer_size=PLSchedule(300_000))
 
 experiment = Experiment(
-  "fjspt", GameSpec(PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 7]), 
+  "fjspt2", GameSpec(PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 7]), 
                     PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 7]), 
                     PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 5]), 
                     PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [2, 2]), 

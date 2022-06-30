@@ -482,5 +482,5 @@ function GI.render(g::GameEnv)
   membership = [repeat([1; 2], g.N_OPP); repeat([3], g.N); 4; 5; repeat([1; 2], size(g.adaptive_nodes.done_time, 1))]
   nodecolor = [colorant"deepskyblue1", colorant"blue", colorant"orange", colorant"red", colorant"green"]
   nodefillc = nodecolor[membership]
-  draw(PNG("games/fjspt/graphs/graph" * string(count(g.is_done[1:(g.N_OPP*2)]) ÷ 2) * ".png", 50cm, 50cm), gplot(graph, nodelabel=1:nv(graph), nodefillc=nodefillc))
+  draw(PNG("games/fjspt2/graphs/graph" * string(count(g.is_done[1:(g.N_OPP*2)]) ÷ 2) * ".png", 50cm, 50cm), gplot(graph, nodelabel=1:nv(graph), nodefillc=nodefillc))
 end
