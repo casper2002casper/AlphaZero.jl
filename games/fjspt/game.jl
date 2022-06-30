@@ -60,20 +60,24 @@ function gen_done_time(p_time, t_time, conj_tar, start_edges, S, T)
   return done_time
 end
 
-function gen_action_values(p_time, t_time, conj_tar, start_edges, K, S)
+function gen_action_values(process_time, t_time, conj_tar, start_edges, prev_operation, prev_machine, prev_vehicle, done_time, K, S)
   nodes = AdaptiveNodes(Matrix{UInt8}(undef, 0, 5), Matrix{UInt8}(undef, 0, 5), Matrix{UInt8}(undef, 0, 4), Matrix{UInt8}(undef, 0, 2))
-  for (i, e) in enumerate(start_edges)
-    t = conj_tar[e]
-    o = conj_tar[t]
-    for (m, m_time) in enumerate(p_time[o÷2, :])
-      m_time == 0xff && continue
+  for (i, o) in enumerate(start_edges)
+    m = prev_operation[i, 2]
+    next_t = conj_tar[o]
+    next_o = conj_tar[next_t]
+    next_next_t = conj_tar[next_o]
+    o = min(o, S)
+    for (p_m, p_time) in enumerate(process_time[next_o÷2, :])
+      p_time == 0xff && continue
       for k in 1:K
         t_node_id = UInt8(S + length(nodes.done_time) + 1)
         m_node_id = t_node_id + 0x1
-        nodes.src = [nodes.src; [S t_node_id t_node_id m_node_id m_node_id]]
-        nodes.tar = [nodes.tar; [t_node_id S m_node_id conj_tar[o] S]]
-        nodes.info = [nodes.info; [m k o i]]
-        nodes.done_time = [nodes.done_time; [t_time[end, m] t_time[end, m] + m_time]]
+        nodes.src = [nodes.src; [o t_node_id t_node_id m_node_id m_node_id]]
+        nodes.tar = [nodes.tar; [t_node_id prev_vehicle[k, 1] m_node_id next_next_t prev_machine[p_m]]]
+        nodes.info = [nodes.info; [p_m k next_o i]]
+        transport_done = done_time[o] + t_time[m, p_m]
+        nodes.done_time = [nodes.done_time; [transport_done transport_done + p_time]]
       end
     end
   end
@@ -160,7 +164,10 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
   conj_tar = generate_conjuctive_edges(num_operations, N_OPP, T, S)
   start_edges_n = collect(0:N-1) .+ S
   node_done = gen_done_time(p_time, t_time, conj_tar, start_edges_n, S, T)
-  adaptive_nodes = gen_action_values(p_time, t_time, conj_tar, start_edges_n, K, S)
+  prev_operation = repeat([S (M + 1)], N)
+  prev_machine = repeat([S], M)
+  prev_vehicle = repeat([S (M + 1)], K)
+  adaptive_nodes = gen_action_values(p_time, t_time, conj_tar, start_edges_n, prev_operation, prev_machine, prev_vehicle, node_done, K, S)
   return GameEnv(
     #Problem instance
     p_time,
@@ -182,9 +189,9 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
     node_done,
     adaptive_nodes,
     #Info
-    repeat([S (M + 1)], N),
-    repeat([S], M),
-    repeat([S (M + 1)], K),
+    prev_operation,
+    prev_machine,
+    prev_vehicle,
     zeros(UInt8, M),
     zeros(UInt8, K)
   )
@@ -331,7 +338,7 @@ function GI.play!(g::GameEnv, action)
       p_time == 0xff && continue
       for k in 1:g.K
         t_node_id = UInt8(g.S + length(g.adaptive_nodes.done_time) + 1)
-        m_node_id = UInt8(t_node_id + 1)
+        m_node_id = t_node_id + 0x1
         g.adaptive_nodes.src = [g.adaptive_nodes.src; [o t_node_id t_node_id m_node_id m_node_id]]
         g.adaptive_nodes.tar = [g.adaptive_nodes.tar; [t_node_id g.prev_vehicle[k, 1] m_node_id next_next_t g.prev_machine[p_m]]]
         g.adaptive_nodes.info = [g.adaptive_nodes.info; [p_m k next_o i]]
@@ -379,8 +386,8 @@ function GI.vectorize_state(::GameSpec, state)
   is_done = [state.is_done; zeros(num_actions)]
   is_transport = [repeat([1; 0], state.N_OPP); ones(state.N); 0; 0; repeat([1; 0], size(state.adaptive_nodes.done_time, 1))]
   is_opperation = [repeat([0; 1], state.N_OPP); zeros(state.N); 0; 0; repeat([0; 1], size(state.adaptive_nodes.done_time, 1))]
-  is_source = [zeros(state.S-1); 1; zeros(length(state.adaptive_nodes.done_time))]
-  is_sink = [zeros(state.T-1); 1; zeros(length(state.adaptive_nodes.done_time)+1)]
+  is_source = [zeros(state.S - 1); 1; zeros(length(state.adaptive_nodes.done_time))]
+  is_sink = [zeros(state.T - 1); 1; zeros(length(state.adaptive_nodes.done_time) + 1)]
   return GNNGraph([state.conj_tar; state.disj_src; vec(state.adaptive_nodes.tar)],
     [state.conj_src; state.disj_tar; vec(state.adaptive_nodes.src)],
     num_nodes=state.S + num_actions,
@@ -473,7 +480,7 @@ function GI.render(g::GameEnv)
   #print graph
   graph = GI.vectorize_state(GI.spec(g), g)
   membership = [repeat([1; 2], g.N_OPP); repeat([3], g.N); 4; 5; repeat([1; 2], size(g.adaptive_nodes.done_time, 1))]
-  nodecolor = [colorant"deepskyblue1", colorant"royalblue4", colorant"orange", colorant"red", colorant"green"]
+  nodecolor = [colorant"deepskyblue1", colorant"blue", colorant"orange", colorant"red", colorant"green"]
   nodefillc = nodecolor[membership]
   draw(PNG("games/fjspt/graphs/graph" * string(count(g.is_done[1:(g.N_OPP*2)]) ÷ 2) * ".png", 50cm, 50cm), gplot(graph, nodelabel=1:nv(graph), nodefillc=nodefillc))
 end
