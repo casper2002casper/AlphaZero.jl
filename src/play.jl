@@ -175,7 +175,8 @@ function MctsPlayer(
     noise_ϵ=params.dirichlet_noise_ϵ,
     noise_α=params.dirichlet_noise_α,
     prior_temperature=params.prior_temperature,
-    adaptive_cpuct=params.adaptive_cpuct)
+    adaptive_cpuct=params.adaptive_cpuct,
+    max_depth=params.max_depth)
   return MctsPlayer(mcts,
     niters=params.num_iters_per_turn,
     τ=params.temperature,
@@ -190,7 +191,8 @@ function RandomMctsPlayer(game_spec::AbstractGameSpec, params::MctsParams)
     gamma=params.gamma,
     noise_ϵ=params.dirichlet_noise_ϵ,
     noise_α=params.dirichlet_noise_α,
-    adaptive_cpuct=params.adaptive_cpuct)
+    adaptive_cpuct=params.adaptive_cpuct,
+    max_depth=params.max_depth)
   return MctsPlayer(mcts,
     niters=params.num_iters_per_turn,
     τ=params.temperature)

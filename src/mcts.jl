@@ -135,6 +135,7 @@ mutable struct Env{State, Oracle}
   noise_ϵ :: Float64
   noise_α :: Float64
   prior_temperature :: Float64
+  max_depth :: Int64
   # Performance statistics
   total_simulations :: Int64
   total_nodes_traversed :: Int64
@@ -142,13 +143,13 @@ mutable struct Env{State, Oracle}
   gspec :: GI.AbstractGameSpec
 
   function Env(gspec, oracle;
-      gamma=1., cpuct=1., noise_ϵ=0., noise_α=1., prior_temperature=1., adaptive_cpuct=false)
+      gamma=1., cpuct=1., noise_ϵ=0., noise_α=1., prior_temperature=1., max_depth=typemax(Int64), adaptive_cpuct=false)
     S = GI.state_type(gspec)
     tree = Dict{S, StateInfo}()
     total_simulations = 0
     total_nodes_traversed = 0
     new{S, typeof(oracle)}(
-      tree, oracle, gamma, cpuct, adaptive_cpuct, cpuct, noise_ϵ, noise_α, prior_temperature,
+      tree, oracle, gamma, cpuct, adaptive_cpuct, cpuct, noise_ϵ, noise_α, prior_temperature, max_depth,
       total_simulations, total_nodes_traversed, gspec)
   end
 end
@@ -200,17 +201,17 @@ end
 # Run a single MCTS simulation, updating the statistics of all traversed states.
 # Return the estimated Q-value for the current player.
 # Modifies the state of the game environment.
-function run_simulation!(env::Env, game; η, root=true)
+function run_simulation!(env::Env, game; η, depth=1)
   if GI.game_terminated(game)
     return 0.
   else
     state = GI.current_state(game)
     actions = GI.available_actions(game)
     info, new_node = state_info(env, state)
-    if new_node
+    if new_node || depth == env.max_depth
       return info.Vest
     else
-      ϵ = root ? env.noise_ϵ : 0.
+      ϵ = depth==1 ? env.noise_ϵ : 0.
       scores = uct_scores(info, env.scaled_cpuct, ϵ, η)
       action_id = argmax(scores)
       action = actions[action_id]
@@ -219,7 +220,7 @@ function run_simulation!(env::Env, game; η, root=true)
       wr = GI.white_reward(game)
       r = wp ? wr : -wr
       pswitch = wp != GI.white_playing(game)
-      qnext = run_simulation!(env, game, η=η, root=false)
+      qnext = run_simulation!(env, game, η=η, depth=depth+1)
       qnext = pswitch ? -qnext : qnext
       q = r + env.gamma * qnext
       update_state_info!(env, state, action_id, q)
