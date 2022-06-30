@@ -10,7 +10,7 @@ module GameInterface
 export AbstractGameSpec, AbstractGameEnv
 
 using ..AlphaZero: Util
-using Random: GLOBAL_RNG
+using Random: GLOBAL_RNG, AbstractRNG
 #####
 ##### Game environments and game specifications
 #####
@@ -165,6 +165,8 @@ baselines such as minmax players.
 """
 function heuristic_value end
 
+disturbe!(gspec::AbstractGameSpec, game::AbstractGameEnv, rng::AbstractRNG, itc) = false
+
 #####
 ##### Symmetries
 #####
@@ -292,9 +294,9 @@ num_actions(game_spec::AbstractGameSpec) = length(actions(game_spec))
 Create a new game environment, initialized in a given state.
 """
 function init(gspec::AbstractGameSpec, state)
-  env = init(gspec)
-  set_state!(env, state)
-  return env
+    env = init(gspec)
+    set_state!(env, state)
+    return env
 end
 
 init(gspec::AbstractGameSpec) = init(gspec, 1, GLOBAL_RNG)
