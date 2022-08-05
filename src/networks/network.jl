@@ -301,12 +301,14 @@ may want to use a `BatchedOracle` along with an inference server that uses
 """
 function evaluate(nn::AbstractNetwork, state)
   gspec = game_spec(nn)
-  actions_mask = [GI.actions_mask(GI.init(gspec, state))]
+  actions_mask = GI.actions_mask(GI.init(gspec, state))
   x = MLUtils.batch([GI.vectorize_state(gspec, state)])
-  xnet, anet = convert_input_tuple(nn, (x, actions_mask))
-  net_output = forward_normalized(nn, xnet, anet)
-  p, v, _ = convert_output_tuple(nn, net_output)
-  return (p[1], v[1])
+  xnet = convert_input(nn, x)
+  p, v = convert_output_tuple(nn, forward(nn, xnet))
+  p = p[1][actions_mask]
+  sp = sum(p)
+  p = p ./ (sp .+ eps(eltype(sp)))
+  return (p, v[1])
 end
 
 (nn::AbstractNetwork)(state) = evaluate(nn, state)
@@ -323,8 +325,10 @@ function evaluate_batch(nn::AbstractNetwork, batch)
   gspec = game_spec(nn)
   X = MLUtils.batch([GI.vectorize_state(gspec, b) for b in batch])
   A = [GI.actions_mask(GI.init(gspec, b)) for b in batch]
-  Xnet, Anet = convert_input_tuple(nn, (X, A))
-  P, V, _ = convert_output_tuple(nn, forward_normalized(nn, Xnet, Anet))
+  P, V = convert_output_tuple(nn, forward(nn, convert_input(nn, X)))
+  P = broadcast((x,y)->x[y], P, A)
+  sp = sum.(P)
+  P = P ./ (sp .+ eps(eltype(sp)))
   return [(P[i], V[1,i]) for i in eachindex(batch)]
 end
 
