@@ -243,12 +243,13 @@ Run `nsims` MCTS simulations from the current state.
 """
 function explore!(env::Env, game, nsims)
   η = dirichlet_noise(game, env.noise_α)
+  length(η) == 1 && (nsims = 2)
   state = GI.current_state(game)
   if env.adaptive_cpuct
     (_, V) = env.oracle(state)
     env.scaled_cpuct = env.cpuct * abs(V)
   end
-  for i in 1:nsims
+  for _ in 1:nsims
     env.total_simulations += 1
     run_simulation!(env, game, η=η)
     GI.set_state!(game, state)
