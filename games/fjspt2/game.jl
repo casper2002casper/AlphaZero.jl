@@ -7,6 +7,7 @@ using Crayons
 using JSON3
 using StructTypes
 using GraphPlot, Compose, Graphs, Colors
+using Statistics: mean
 
 struct GameSpec <: GI.AbstractGameSpec
   M::Pair{AbstractSchedule,AbstractSchedule}
@@ -17,105 +18,32 @@ struct GameSpec <: GI.AbstractGameSpec
   T::Pair{UInt8,UInt8}
 end
 
-mutable struct AdaptiveNodes
-  src::Matrix{UInt8}
-  tar::Matrix{UInt8}
-  info::Matrix{UInt8}
-  done_time::Matrix{UInt16}
-end
-
-Base.copy(s::AdaptiveNodes) = AdaptiveNodes(copy(s.src), copy(s.tar), copy(s.info), copy(s.done_time))
-
-function generate_conjuctive_edges(num_operations, N_OPP, T, S)
-  N = length(num_operations)
-  target = [collect(UInt8, 2:N_OPP*2+1); repeat([T], N + 1); zeros(UInt8, N)]
-  index = 1
-  for (i, num) in enumerate(num_operations)
-    target[S+i-1] = index
-    index += num * 2
-    target[index-1] = T - i
-  end
-  return target
-end
-
-function gen_done_time(p_time, t_time, conj_tar, start_edges, S, T)
-  done_time = zeros(UInt16, S)
-  for o in start_edges
-    last_done_time = 0
-    last_m = size(t_time, 1)#M+2
-    while (true)#propagate expected done time
-      t = conj_tar[o]
-      o = conj_tar[t]
-      if (o == T)
-        done_time[t] = last_done_time + t_time[last_m, end]
-        done_time[T] = max(done_time[T], done_time[t])
-        break
-      end
-      m_time, m = findmin(p_time[o÷2, :])
-      done_time[t] = last_done_time + t_time[last_m, m]
-      last_done_time = done_time[o] = done_time[t] + m_time
-      last_m = m
-    end
-  end
-  return done_time
-end
-
-function gen_action_values(process_time, t_time, conj_tar, start_edges, prev_operation, prev_machine, prev_vehicle, done_time, K, S)
-  nodes = AdaptiveNodes(Matrix{UInt8}(undef, 0, 5), Matrix{UInt8}(undef, 0, 5), Matrix{UInt8}(undef, 0, 4), Matrix{UInt8}(undef, 0, 2))
-  for (i, o) in enumerate(start_edges)
-    m = prev_operation[i, 2]
-    next_t = conj_tar[o]
-    next_o = conj_tar[next_t]
-    next_next_t = conj_tar[next_o]
-    o = min(o, S)
-    for (p_m, p_time) in enumerate(process_time[next_o÷2, :])
-      p_time == 0xff && continue
-      for k in 1:K
-        t_node_id = UInt8(S + length(nodes.done_time) + 1)
-        m_node_id = t_node_id + 0x1
-        nodes.src = [nodes.src; [o t_node_id t_node_id m_node_id m_node_id]]
-        nodes.tar = [nodes.tar; [t_node_id prev_vehicle[k, 1] m_node_id next_next_t prev_machine[p_m]]]
-        nodes.info = [nodes.info; [p_m k next_o i]]
-        transport_done = done_time[o] + t_time[m, p_m]
-        nodes.done_time = [nodes.done_time; [transport_done transport_done + p_time]]
-      end
-    end
-  end
-  return nodes
-end
-
 mutable struct GameEnv <: GI.AbstractGameEnv
   #Problem instance
-  process_time::Matrix{UInt8} #Index in (Mxn)*M
-  transport_time::Matrix{UInt8} #M+2xM+2
+  process_time::Matrix{UInt8} #o,m -> p_time
+  transport_time::Matrix{UInt8} #m, m' -> t_time
   M::UInt8
   N::UInt8
   K::UInt8
-  N_OPP::UInt16
-  T::UInt16
-  S::UInt16
+  job_ids::Vector{UInt8} # i -> operations
   UB::UInt16
   LB::UInt16
-  conj_src::Vector{UInt8}
-  conj_tar::Vector{UInt8}
-  #State
-  disj_src::Vector{UInt8}
-  disj_tar::Vector{UInt8}
-  is_done::Vector{Bool}
-  done_time::Vector{UInt16}
-  adaptive_nodes::AdaptiveNodes
-  #Info
-  prev_operation::Matrix{UInt8}
-  prev_machine::Vector{UInt8}
-  prev_vehicle::Matrix{UInt8}
-  start_machine::Vector{UInt8}
-  start_vehicle::Vector{UInt8}
+  #Solution
+  assigned::Matrix{UInt16} #o -> m,k
+  previous::Matrix{UInt16} #o -> o_m, o_k
+  ready_time::Matrix{UInt16} #o -> setup_done
+  done_time::Matrix{UInt16} #o -> o_done
+  #Info 
+  last_o_m::Vector{UInt16}#m->o
+  last_o_k::Vector{UInt16}#k->o
+  node_ids::Vector{UInt16}#o->e
 end
 
 function Base.hash(s::GameEnv, h::UInt)
-  return hash([s.disj_src; s.disj_tar], h)
+  return hash([s.assigned; s.previous], h)
 end
-Base.isequal(a::GameEnv, b::GameEnv) = isequal((a.disj_src, a.disj_tar), (b.disj_src, b.disj_tar))
+
+Base.isequal(a::GameEnv, b::GameEnv) = isequal((a.assigned, a.previous), (b.assigned, b.previous))
 
 Base.copy(s::GameEnv) = GameEnv(
   #Static values
@@ -124,50 +52,44 @@ Base.copy(s::GameEnv) = GameEnv(
   s.M,
   s.N,
   s.K,
-  s.N_OPP,
-  s.T,
-  s.S,
+  s.job_ids,
   s.UB,
   s.LB,
-  s.conj_src,
-  s.conj_tar,
   #Mutable values
-  copy(s.disj_src),
-  copy(s.disj_tar),
-  copy(s.is_done),
+  copy(s.assigned),
+  copy(s.previous),
+  copy(s.ready_time),
   copy(s.done_time),
-  copy(s.adaptive_nodes),
-  copy(s.prev_operation),
-  copy(s.prev_machine),
-  copy(s.prev_vehicle),
-  copy(s.start_machine),
-  copy(s.start_vehicle)
+  copy(s.last_o_m),
+  copy(s.last_o_k),
+  copy(s.node_ids)
 )
 
 function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
-  N = rand(rng, spec.N.first[itc]:spec.N.second[itc])
-  M = rand(rng, spec.M.first[itc]:spec.M.second[itc])
-  K = rand(rng, spec.K.first[itc]:spec.K.second[itc])
-  num_operations = rand(rng, 1:M, N)
-  N_OPP = sum(num_operations)
-  T = N_OPP * 2 + N + 1
-  S = N_OPP * 2 + N + 2
-  p_time = rand(rng, spec.P.first:spec.P.second, N_OPP, M)
-  for o in 1:N_OPP
-    ind = randperm(rng, M)[1:M-rand(rng, spec.A.first[itc]:spec.A.second[itc])]
-    p_time[o, ind] .= 0xff
+  N = rand(rng, UInt8(spec.N.first[itc]):UInt8(spec.N.second[itc]))
+  M = rand(rng, UInt8(spec.M.first[itc]):UInt8(spec.M.second[itc]))
+  K = rand(rng, UInt8(spec.K.first[itc]):UInt8(spec.K.second[itc]))
+  num_operations = rand(rng, 2:(M+1), N)
+  job_ids = cumsum([1; num_operations])
+  total_opps = sum(num_operations)
+  p_time = rand(rng, spec.P.first:spec.P.second, total_opps, M+1);
+  for o in 1:total_opps
+    is_return_opperation = o+1 in job_ids
+    if(!is_return_opperation)
+      not_able = randperm(rng, M)[1:M-rand(rng, spec.A.first[itc]:spec.A.second[itc])]
+      p_time[o, not_able] .= 0xff
+    else
+      p_time[o, :] .= 0xff
+    end 
+    p_time[o, M+1] = is_return_opperation ? 0 : 0xff
   end
   t_time = rand(rng, spec.T.first:spec.T.second, M + 1, M + 1)
   for m in 1:M+1
     t_time[m, m] = 0x00
   end
-  conj_tar = generate_conjuctive_edges(num_operations, N_OPP, T, S)
-  start_edges_n = collect(0:N-1) .+ S
-  node_done = gen_done_time(p_time, t_time, conj_tar, start_edges_n, S, T)
-  prev_operation = repeat([S (M + 1)], N)
-  prev_machine = repeat([S], M)
-  prev_vehicle = repeat([S (M + 1)], K)
-  adaptive_nodes = gen_action_values(p_time, t_time, conj_tar, start_edges_n, prev_operation, prev_machine, prev_vehicle, node_done, K, S)
+  num_nodes = vec(sum(p_time .!= 0xff, dims=2)) .+ K
+  node_ids = cumsum([3; num_nodes])#S, T, nodes
+  NUM_ACTIONS = job_ids[end] - 1 
   return GameEnv(
     #Problem instance
     p_time,
@@ -175,25 +97,18 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
     M,
     N,
     K,
-    N_OPP,
-    T,
-    S,
-    sum(maximum(replace(p_time, 0xff => 0x00), dims=2)) + maximum(t_time) * (2 * N_OPP + N), #All worst operations in a row,
-    node_done[T],
-    [collect(1:N_OPP*2+N); T; S * ones(N)],
-    conj_tar,
-    #State
-    [],
-    [],
-    [falses(N_OPP * 2 + N); false; true], #[Transport, Operations, returns, T, S]
-    node_done,
-    adaptive_nodes,
+    job_ids,
+    sum(maximum(replace(p_time, 0xff => 0x00), dims=2)) + maximum(t_time) * (2 * NUM_ACTIONS), #All worst operations in a row,,
+    sum(sum.(minimum.([p_time[job_ids[i]:job_ids[i+1]-1, :] for i in 1:length(job_ids)-1], dims=2))),
+    #Solution
+    zeros(UInt16, NUM_ACTIONS, 2),
+    zeros(UInt16, NUM_ACTIONS, 2),
+    zeros(UInt16, NUM_ACTIONS, 2),
+    zeros(UInt16, NUM_ACTIONS, 2),
     #Info
-    prev_operation,
-    prev_machine,
-    prev_vehicle,
-    zeros(UInt8, M),
-    zeros(UInt8, K)
+    zeros(UInt16, M+1),
+    zeros(UInt16, K),
+    node_ids
   )
 end
 
@@ -207,7 +122,7 @@ end
 
 StructTypes.StructType(::Type{FJSPTInstance}) = StructTypes.Struct()
 
-function GI.init(spec::GameSpec, instance_string::String)
+function GI.init(spec::GameSpec, instance_string::String) #fix
   instance = JSON3.read(instance_string, FJSPTInstance)
   p_time = reshape(instance.process_time, :, instance.num_machines)
   t_time = reshape(instance.transport_time, :, instance.num_machines + 1)
@@ -221,32 +136,26 @@ function GI.init(spec::GameSpec, instance_string::String)
   conj_tar = generate_conjuctive_edges(instance.num_operations, N_OPP, T, S)
   start_edges_n = collect(0:N-1) .+ S
   node_done = gen_done_time(p_time, t_time, conj_tar, start_edges_n, S, T)
-  adaptive_nodes = gen_action_values(p_time, t_time, conj_tar, start_edges_n, K, S)
+  num_nodes = sum(p_time .!= 0xff, dims=1) .+ K
+  node_ids = cumsum(num_nodes)
   return GameEnv(
     p_time,
     t_time,
     instance.num_machines,
     N,
     instance.num_vehicles,
-    N_OPP,
-    T,
-    S,
+    instance.num_operations,
     sum(maximum(replace(p_time, 0xff => 0x00), dims=2)) + maximum(t_time) * (2 * N_OPP + N), #All worst operations in a row,
     node_done[T],
-    [collect(1:N_OPP*2+N); T; S * ones(N)],
-    conj_tar,
     #State
-    [],
-    [],
-    [falses(N_OPP * 2 + N); false; true],
-    node_done,
-    adaptive_nodes,
+    zeros(UInt16, NUM_OPP * 2 + N, 2),
+    zeros(UInt16, NUM_OPP * 2 + N, 2),
+    zeros(UInt16, NUM_OPP * 2 + N),
+    zeros(UInt16, NUM_OPP * 2 + N),
     #Info
-    repeat([S (M + 1)], N),
-    repeat([S], M),
-    repeat([S (M + 1)], K),
-    zeros(UInt8, M),
-    zeros(UInt8, K)
+    zeros(UInt16, M),
+    zeros(UInt16, K),
+    node_ids
   )
 end
 
@@ -256,142 +165,219 @@ GI.spec(g::GameEnv) = GameSpec(ConstSchedule(g.M) => ConstSchedule(g.M), ConstSc
 
 GI.two_players(::GameSpec) = false
 
-GI.state_dim(spec::GameSpec) = (6, (spec.M.second[1] * spec.N.second[1] + 2))#Opperations + source and sink
+GI.state_dim(spec::GameSpec) = (5, 0)
 
 GI.state_type(spec::GameSpec) = return GameEnv
 
 function GI.set_state!(g::GameEnv, s)
-  g.disj_src = copy(s.disj_src)
-  g.disj_tar = copy(s.disj_tar)
-  g.is_done = copy(s.is_done)
+  g.assigned = copy(s.assigned)
+  g.previous = copy(s.previous)
+  g.ready_time = copy(s.ready_time)
   g.done_time = copy(s.done_time)
-  g.adaptive_nodes = copy(s.adaptive_nodes)
-  g.prev_operation = copy(s.prev_operation)
-  g.prev_machine = copy(s.prev_machine)
-  g.prev_vehicle = copy(s.prev_vehicle)
-  g.start_machine = copy(s.start_machine)
-  g.start_vehicle = copy(s.start_vehicle)
+  g.last_o_m = copy(s.last_o_m)
+  g.last_o_k = copy(s.last_o_k)
+  g.node_ids = copy(s.node_ids)
 end
 
 GI.current_state(g::GameEnv) = copy(g)
 
 GI.white_playing(g::GameEnv) = true
 
-GI.game_terminated(g::GameEnv) = g.is_done[g.T]
+GI.game_terminated(g::GameEnv) = !any(g.assigned[g.job_ids[2:end].-1,2] .== 0)
 
-GI.actions(spec::GameSpec) = collect(1:(spec.M.second[1]*spec.N.second[1]+2))
+GI.actions(spec::GameSpec) = []
 
-GI.available_actions(g::GameEnv) = collect(g.S+1:2:g.S+length(g.adaptive_nodes.done_time)-1)
+# function next_action(g::GameEnv, i)
+#   o = g.last_o_i[i] + 1
+#   if (o == g.job_ids[i+1])
+#     return []
+#   end
+#   if (g.assigned[o, 1] == 0)#transport unscheduled
+#     return g.node_ids[o]:g.node_ids[o]+g.K-1
+#   else
+#     return g.node_ids[o]+1:g.node_ids[o+1]-1
+#   end
+# end
 
-GI.actions_mask(g::GameEnv) = [falses(g.S); repeat([true, false], size(g.adaptive_nodes.done_time, 1))]
+# function GI.available_actions(g::GameEnv)
+#   return reduce(vcat, [next_action(g, i) for i in 1:g.N])
+# end
 
-function GI.play!(g::GameEnv, action)
-  #mark operation scheduled
-  m, k, o, i = g.adaptive_nodes.info[(action+1-g.S)÷2, :]
-  t = o - 0x1
-  @assert g.is_done[o] == false
-  g.is_done[o] = true
-  g.is_done[t] = true
-  #update previous operation and machine
-  p = g.prev_machine[m] #previous operation done on machine of todo operation
-  l, m_l = g.prev_operation[i, :] #previous operation done in job of todo operation
-  u, m_u = g.prev_vehicle[k, :]
-  #update info vectors
-  g.prev_machine[m] = o
-  g.prev_operation[i, :] = [o, m]
-  isequal(m_l, m) || (g.prev_vehicle[k, :] = [t, m])#don't update if no transport needed
-  iszero(g.start_machine[m]) && (g.start_machine[m] = o)
-  iszero(g.start_vehicle[k]) && (g.start_vehicle[k] = t)
-  #add disjunctive link
-  append!(g.disj_src, u)
-  append!(g.disj_tar, t)
-  append!(g.disj_src, p)
-  append!(g.disj_tar, o)
-  #set done time
-  g.done_time[t] = max(g.done_time[p], max(g.done_time[l], g.done_time[u] + g.transport_time[m_u, m_l]) + g.transport_time[m_l, m])
-  g.done_time[o] = max(g.done_time[t], g.done_time[p]) + g.process_time[o÷2, m]
-  #remove old actions
-  mask = g.adaptive_nodes.info[:, 3] .!== o
-  g.adaptive_nodes.src = g.adaptive_nodes.src[mask, :]
-  g.adaptive_nodes.tar = g.adaptive_nodes.tar[mask, :]
-  g.adaptive_nodes.info = g.adaptive_nodes.info[mask, :]
-  g.adaptive_nodes.done_time = g.adaptive_nodes.done_time[mask, :]
-  #fix disjunctive edges 
-  g.adaptive_nodes.tar[g.adaptive_nodes.info[:, 2].==k, 2] .= t
-  g.adaptive_nodes.tar[g.adaptive_nodes.info[:, 1].==m, 5] .= o
-  #fix node ids
-  num_adaptive_nodes = size(g.adaptive_nodes.done_time, 1) * 2
-  t_ids = collect(UInt8, g.S+1:2:g.S+num_adaptive_nodes)
-  m_ids = t_ids .+ 0x1
-  g.adaptive_nodes.tar[:, 1] = t_ids
-  g.adaptive_nodes.src[:, 2] = t_ids
-  g.adaptive_nodes.src[:, 3] = t_ids
-  g.adaptive_nodes.tar[:, 3] = m_ids
-  g.adaptive_nodes.src[:, 4] = m_ids
-  g.adaptive_nodes.src[:, 5] = m_ids
-  #add new actions
-  next_t = g.conj_tar[o]
-  next_o = g.conj_tar[next_t]
-  next_next_t = g.conj_tar[next_o]
-  if (!isequal(next_o, g.T))
-    for (p_m, p_time) in enumerate(g.process_time[next_o÷2, :])
-      p_time == 0xff && continue
-      for k in 1:g.K
-        t_node_id = UInt8(g.S + length(g.adaptive_nodes.done_time) + 1)
-        m_node_id = t_node_id + 0x1
-        g.adaptive_nodes.src = [g.adaptive_nodes.src; [o t_node_id t_node_id m_node_id m_node_id]]
-        g.adaptive_nodes.tar = [g.adaptive_nodes.tar; [t_node_id g.prev_vehicle[k, 1] m_node_id next_next_t g.prev_machine[p_m]]]
-        g.adaptive_nodes.info = [g.adaptive_nodes.info; [p_m k next_o i]]
-        transport_done = g.done_time[o] + g.transport_time[m, p_m]
-        g.adaptive_nodes.done_time = [g.adaptive_nodes.done_time; [transport_done transport_done + p_time]]
+function GI.available_actions(g::GameEnv)
+  nodes = Vector{UInt16}()
+  for (j, o) in enumerate(g.job_ids[1:end-1])
+    while (o != g.job_ids[j+1])
+      if (g.assigned[o, 2] == 0)#machine unscheduled
+        if (g.assigned[o, 1] == 0)#transport unscheduled
+          append!(nodes, g.node_ids[o]:g.node_ids[o]+g.K-1)
+        else
+          append!(nodes, g.node_ids[o]+1:g.node_ids[o+1]-1)
+        end
+        break
+      else
+        o += 1
       end
     end
-  else
-    g.is_done[next_t] = true
-    append!(g.disj_src, t)
-    append!(g.disj_tar, next_t)
-    g.prev_vehicle[k, :] = [next_t, g.M + 1]
   end
-  #mark last node as done
-  isempty(g.adaptive_nodes.done_time) && (g.is_done[g.T] = true)
-  #propagate expected done time
-  last_done_time = g.done_time[o]
-  last_m = m
-  while (true)
-    t = g.conj_tar[o]
-    o = g.conj_tar[t]
-    if (o == g.T)
-      g.done_time[t] = last_done_time + g.transport_time[last_m, end]
-      g.done_time[o] = max(g.done_time[o], g.done_time[t])
-      return
-    end
-    m_time, m = findmin(g.process_time[o÷2, :])
-    g.done_time[t] = last_done_time + g.transport_time[last_m, m]
-    last_done_time = g.done_time[o] = g.done_time[t] + m_time
-    last_m = m
+  return nodes
+end
+
+function GI.actions_mask(g::GameEnv)
+  mask = falses(g.node_ids[end] - 1)
+  available = GI.available_actions(g)
+  mask[available] .= true
+  return mask
+end
+
+function properties(action, node_ids)
+  o = findfirst(>(action), node_ids) - 1
+  local_index = action - node_ids[o] + 1
+  return (o, local_index)
+end
+
+function GI.play!(g::GameEnv, action)
+  o, local_index = properties(action, g.node_ids)
+  is_transport = (g.assigned[o, 1] == 0)
+  is_first = o in g.job_ids
+  prev_o_i = o - 1
+  if (is_transport)
+    k = local_index
+    prev_o_k = g.last_o_k[k]
+    #get vehicle locations
+    m_k = iszero(prev_o_k) ? g.M + 1 : g.assigned[prev_o_k, 2]
+    m_i = is_first ? g.M + 1 : g.assigned[prev_o_i, 2]
+    #update solution
+    g.assigned[o, 1] = k
+    #update time
+    g.ready_time[o, 1] = max(is_first ? 0 : g.done_time[prev_o_i, 2], iszero(prev_o_k) ? 0 : g.done_time[prev_o_k, 1])
+    #update ids
+    g.node_ids[o+1:end] .-= g.K - 1
+  else
+    m_o = findall(!=(0xff), g.process_time[o, :])
+    m = m_o[local_index-1]
+    prev_o_m = g.last_o_m[m]
+    #update solution
+    g.assigned[o, 2] = m
+    g.previous[o, 2] = prev_o_m
+    #update info vectors
+    g.last_o_m[m] = o
+    #update vehicle
+    k = g.assigned[o, 1]
+    prev_o_k = g.last_o_k[k]
+    m_k = iszero(prev_o_k) ? g.M + 1 : g.assigned[prev_o_k, 2]
+    m_i = is_first ? g.M + 1 : g.assigned[prev_o_i, 2]
+    transport_needed = m_i != m
+    transport_needed && (g.last_o_k[k] = o)
+    on_location = max(g.ready_time[o, 1], iszero(prev_o_k) ? 0 : g.done_time[prev_o_k, 1] + (transport_needed ? g.transport_time[m_k, m_i] : 0))
+    g.previous[o, 1] = prev_o_k
+    g.done_time[o, 1] = max(iszero(prev_o_m) ? 0 : g.done_time[prev_o_m, 2], on_location + g.transport_time[m_i, m])
+    #update time
+    g.ready_time[o, 2] = max(g.done_time[o, 1], iszero(prev_o_m) ? 0 : g.done_time[prev_o_m, 2])
+    g.done_time[o, 2] = g.ready_time[o, 2] + g.process_time[o, m]
+    #update ids
+    g.node_ids[o+1:end] .-= length(m_o) - 1
   end
 end
 
 function GI.white_reward(g::GameEnv)
-  if (all(g.is_done))
-    #return -convert(Float32, g.done_time[g.T])
-    return ((g.UB - g.done_time[g.T]) / (g.UB - g.LB))
+  if (GI.game_terminated(g))
+    return ((g.UB - maximum(g.done_time[g.job_ids[2:end].-1,2])) / (g.UB - g.LB))
   end
   return 0
 end
 
-function GI.vectorize_state(::GameSpec, state)
-  num_actions = length(state.adaptive_nodes.done_time)
-  done_time = [state.done_time; vec(state.adaptive_nodes.done_time)] / state.done_time[state.T]
-  is_done = [state.is_done; zeros(num_actions)]
-  is_transport = [repeat([1; 0], state.N_OPP); ones(state.N); 0; 0; repeat([1; 0], size(state.adaptive_nodes.done_time, 1))]
-  is_opperation = [repeat([0; 1], state.N_OPP); zeros(state.N); 0; 0; repeat([0; 1], size(state.adaptive_nodes.done_time, 1))]
-  is_source = [zeros(state.S - 1); 1; zeros(length(state.adaptive_nodes.done_time))]
-  is_sink = [zeros(state.T - 1); 1; zeros(length(state.adaptive_nodes.done_time) + 1)]
-  return GNNGraph([state.conj_tar; state.disj_src; vec(state.adaptive_nodes.tar)],
-    [state.conj_src; state.disj_tar; vec(state.adaptive_nodes.src)],
-    num_nodes=state.S + num_actions,
-    ndata=Float32.([done_time is_done is_transport is_opperation is_source is_sink]'))
+function add_conj_nodes!(previous_nodes, next_nodes, conj_src, conj_tar)
+  for previous in previous_nodes
+    append!(conj_src, next_nodes)
+    append!(conj_tar, repeat([previous], length(next_nodes)))
+  end
+end
+
+function node_group(g::GameEnv, o, t, m)
+  transport_nodes = g.assigned[o, 1] != 0 ? 1 : g.K
+  transport = repeat([t], transport_nodes)
+  machines = repeat([m], g.assigned[o, 2] != 0 ? 1 : g.node_ids[o+1] - g.node_ids[o] - transport_nodes)
+  return [transport; machines]
+end
+
+function get_machines(g::GameEnv, o)
+  is_first = o+1 in g.job_ids
+  m = is_first ? g.M+1 : g.assigned[o, 2]
+  m = m == 0 ? findall(!=(0xff), g.process_time[o, :]) : m
+  return m
+end
+
+function time_for_action(g::GameEnv, o)
+  t = g.assigned[o, 1] 
+  m = g.assigned[o, 2]
+  if(t != 0 && m != 0)
+    transport = Float32(g.done_time[o,1] - g.ready_time[o,1])
+  elseif (t != 0)
+    m_k = g.previous[o, 1] == 0 ? g.M+1 : g.assigned[g.previous[o, 1], 2]
+    prev_m = get_machines(g, o-1)
+    next_m = get_machines(g, o)
+    transport = mean(g.transport_time[m_k, prev_m]) + mean(g.transport_time[prev_m, next_m])
+  else
+    transport = repeat([mean(g.transport_time)*2], 2)
+  end
+  machines = m == 0 ? filter(!=(0xff) ,g.process_time[o,:]) : g.process_time[o,m]
+  return [transport; machines]
+end
+
+function GI.vectorize_state(::GameSpec, s::GameEnv)
+  conj_src = Vector{UInt16}()
+  conj_tar = Vector{UInt16}()
+  disj_src = Vector{UInt16}()
+  disj_tar = Vector{UInt16}()
+  for o in 1:(s.job_ids[end]-1)
+    is_first = o in s.job_ids
+    is_last = o + 1 in s.job_ids
+    #Transport
+    if (s.assigned[o, 1] != 0)#scheduled
+      prev_conj = [is_first ? 1 : s.node_ids[o] - 1]
+      next_conj = [s.node_ids[o]]
+      prev_disj = iszero(s.previous[o, 1]) ? [] : [s.node_ids[s.previous[o, 1]]]
+      next_disj = iszero(s.previous[o, 1]) ? [] : next_conj
+    else#unscheduled
+      prev_conj = is_first ? [1] : (s.node_ids[o-1]+(s.assigned[o-1, 1] == 0 ? s.K : 1)):s.node_ids[o]-1
+      next_conj = s.node_ids[o]:(s.node_ids[o]+s.K-1)
+      is_started = s.last_o_k .!= 0
+      prev_disj = s.node_ids[s.last_o_k[is_started]] 
+      next_disj = next_conj[is_started]
+    end
+    add_conj_nodes!(prev_conj, next_conj, conj_src, conj_tar)
+    append!(disj_src, prev_disj)
+    append!(disj_tar, next_disj)
+    #Machines
+    if (s.assigned[o, 2] != 0)#scheduled
+      prev_conj = [s.node_ids[o]]
+      next_conj = [s.node_ids[o] + 1]
+      prev_disj = iszero(s.previous[o, 2]) ? [] : s.node_ids[s.previous[o, 2]] + 1
+      next_disj = iszero(s.previous[o, 2]) ? [] : next_conj
+    else
+      m = findall(!=(0xff), s.process_time[o, :])
+      prev_conj = s.node_ids[o]:(s.node_ids[o+1]-length(m)-1)
+      next_conj = (s.node_ids[o+1]-length(m)):(s.node_ids[o+1]-1)
+      is_started = s.last_o_m[m] .!= 0
+      prev_disj = s.node_ids[s.last_o_m[m][is_started]] .+ 1 
+      next_disj = next_conj[is_started]
+    end
+    add_conj_nodes!(prev_conj, next_conj, conj_src, conj_tar)
+    append!(disj_src, prev_disj)
+    append!(disj_tar, next_disj)
+    is_last && add_conj_nodes!(next_conj, [2], conj_src, conj_tar)
+  end
+  membership = reduce(vcat,[node_group(s, o, 2*o-1, 2*o) for o in 1:s.job_ids[end]-1])
+  is_done = [0.0;GI.game_terminated(s) ? 1.0 : 0.0;Float32.(vec(s.assigned' .!= 0))[membership]]
+  is_transport = [0.0;0.0;repeat([1.0,0.0], s.job_ids[end]-1)[membership]]
+  ready_time = [0.0;maximum(s.ready_time);Float32.(vec(s.ready_time'))[membership]]
+  done_time = [0.0;maximum(s.done_time);Float32.(vec(s.done_time'))[membership]]
+  action_time = [0.0;0.0; [time_for_action(s, o) for o in 1:s.job_ids[end]-1]...]
+  return GNNGraph(
+    [conj_src; disj_src],
+    [conj_tar; disj_tar],
+    num_nodes=s.node_ids[end] - 1,
+    ndata=[is_done is_transport ready_time done_time action_time]')#
 end
 
 #####
@@ -416,71 +402,48 @@ function GI.read_state(::GameSpec)#input problem
   return nothing
 end
 
+function print_schedule(g::GameEnv, id, is_machine)
+  print(crayon"white", is_machine ? "m" : "k", id, ":")
+  line = []
+  datarow = is_machine ? 2 : 1
+  o = is_machine ? g.last_o_m[id] : g.last_o_k[id]
+  t = o==0 ? 0 : g.done_time[o, datarow]
+  while(o != 0)
+    i = count(<=(o), g.job_ids)
+    append!(line, [repeat("-", t - g.done_time[o, datarow]); crayon"dark_gray"])
+    append!(line, [repeat("=", g.done_time[o, datarow] - g.ready_time[o, datarow]); Crayon(foreground=i)])
+    t = g.ready_time[o, datarow]
+    o = g.previous[o, datarow]
+  end
+  append!(line, [repeat("-", t); crayon"dark_gray"])
+  print(reverse(line)...)
+  println(crayon"reset")
+end
 
 function GI.render(g::GameEnv)
-  m_opperation = zeros(UInt8, g.N_OPP)
-  for (m, o) in enumerate(g.start_machine)
-    print(crayon"white", "m", m, ":")
-    last_done = 0
-    while (!iszero(o))
-      i = count(>(g.N_OPP * 2), g.conj_tar[1:o-1]) + 1
-      idle = (crayon"dark_gray", repeat("-", g.done_time[o] - g.process_time[o÷2, m] - last_done))
-      active = (Crayon(foreground=i), repeat("=", g.process_time[o÷2, m]))
-      print(idle..., active...)
-      last_done = g.done_time[o]
-      m_opperation[o÷2] = m
-      #get next operation for machine
-      index = findfirst(isequal(o), g.disj_src)
-      if (isnothing(index))
-        break
-      end
-      o = g.disj_tar[index]
-    end
-    fill = (crayon"dark_gray", repeat("-", g.done_time[g.T] - last_done))
-    print(fill...)
-    println(crayon"reset")
+  for m in 1:g.M
+    print_schedule(g, m, true)
   end
-  for (k, t) in enumerate(g.start_vehicle)
-    print(crayon"white", "k", k, ":")
-    last_done = 0
-    location = g.M + 1
-    while (!iszero(t))
-      if (t <= g.N_OPP * 2)
-        i = count(>(g.N_OPP * 2), g.conj_tar[1:t]) + 1
-        dropoff = m_opperation[(t+1)÷2]
-      else
-        i = Int64(g.T - t)
-        dropoff = g.M + 1
-      end
-      pickup_index = findfirst(isequal(t), g.conj_tar)
-      pickup = pickup_index > g.N_OPP * 2 ? g.M + 1 : m_opperation[pickup_index÷2]
-      empty_time = g.transport_time[location, pickup]
-      loaded_time = g.transport_time[pickup, dropoff]
-      idle = (crayon"dark_gray", repeat("-", g.done_time[t] - last_done - empty_time - loaded_time))
-      empty = (crayon"dark_gray", repeat("=", empty_time))
-      loaded = (Crayon(foreground=i), repeat("=", loaded_time))
-      print(idle..., empty..., loaded...)
-      last_done = g.done_time[t]
-      location = dropoff
-      #get next transport for vehicle
-      index = findfirst(isequal(t), g.disj_src)
-      isnothing(index) && break
-      t = g.disj_tar[index]
-    end
-    fill = (crayon"dark_gray", repeat("-", g.done_time[g.T] - last_done))
-    print(fill...)
-    println(crayon"reset")
+  for k in 1:g.K
+    print_schedule(g, k, false)
   end
   for n in 1:g.N
     print(Crayon(foreground=n), "n", n, " ")
   end
-  print(crayon"white", "makespan: ", g.done_time[g.T])
+  print(crayon"white", "makespan: ", maximum(g.done_time))
+  print(crayon"white", " lowerbound: ", g.LB*1)
+  print(crayon"white", " upperbound: ", g.UB*1)
   print(crayon"white", " reward: ", GI.white_reward(g))
   println(crayon"reset")
+  @show g.assigned * 1
+  @show g.ready_time * 1
+  @show g.done_time * 1
+  @show g.last_o_k*1
+  @show g.last_o_m*1
   #print graph
   graph = GI.vectorize_state(GI.spec(g), g)
-  membership = [repeat([1; 2], g.N_OPP); repeat([3], g.N); 4; 5; repeat([1; 2], size(g.adaptive_nodes.done_time, 1))]
-  nodecolor = [colorant"deepskyblue1", colorant"blue", colorant"orange", colorant"red", colorant"green"]
+  membership = [4; 5; [node_group(g, o, 2, 3) for o in 1:(g.job_ids[end]-1)]...]
+  nodecolor = [colorant"deepskyblue1", colorant"lightblue", colorant"orange", colorant"red", colorant"green"]
   nodefillc = nodecolor[membership]
-  draw(PNG("games/fjspt2/graphs/graph" * string(count(g.is_done[1:(g.N_OPP*2)]) ÷ 2) * ".png", 50cm, 50cm), gplot(graph, nodelabel=1:nv(graph), nodefillc=nodefillc))
+  draw(PNG("games/fjspt2/graphs/graph" * string(count(g.assigned .!= 0)) * ".png", 50cm, 50cm), gplot(graph, nodelabel=1:nv(graph), nodefillc=nodefillc))
 end
