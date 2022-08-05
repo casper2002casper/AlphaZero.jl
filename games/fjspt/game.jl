@@ -373,7 +373,7 @@ function GI.play!(g::GameEnv, action)
 end
 
 function GI.white_reward(g::GameEnv)
-  if (all(g.is_done))
+  if (g.is_done[g.T])
     #return -convert(Float32, g.done_time[g.T])
     return ((g.UB - g.done_time[g.T]) / (g.UB - g.LB))
   end
