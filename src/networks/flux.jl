@@ -110,6 +110,7 @@ function Network.train!(
   optimiser = Flux.Nesterov(opt.lr_low, opt.momentum_high)
   params = Flux.params(nn)
   for (i, d) in enumerate(data)
+    d = Network.convert_input_tuple(nn, d)
     l, grads = lossgrads(params) do
       loss(d...)
     end
