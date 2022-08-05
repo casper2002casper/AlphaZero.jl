@@ -10,7 +10,7 @@ using ..AlphaZero
 using Base: @kwdef
 using Statistics: mean
 
-import Flux  # we use Flux.batch
+import MLUtils  # we use Flux.batch
 import GraphNeuralNetworks
 
 using CUDA
@@ -99,7 +99,7 @@ function convert_input end
 function convert_input_tuple(
     nn::AbstractNetwork, input::Union{Tuple, NamedTuple})
   return map(input) do arr
-    convert_input(nn, arr)
+    arr isa Vector{<:GraphNeuralNetworks.GNNGraphs.GNNGraph} ? MLUtils.batch(convert_input(nn, arr)) : convert_input(nn, arr)
   end
 end
 
@@ -302,7 +302,7 @@ may want to use a `BatchedOracle` along with an inference server that uses
 function evaluate(nn::AbstractNetwork, state)
   gspec = game_spec(nn)
   actions_mask = [GI.actions_mask(GI.init(gspec, state))]
-  x =  Flux.batch([GI.vectorize_state(gspec, state)])
+  x = MLUtils.batch([GI.vectorize_state(gspec, state)])
   xnet, anet = convert_input_tuple(nn, (x, actions_mask))
   net_output = forward_normalized(nn, xnet, anet)
   p, v, _ = convert_output_tuple(nn, net_output)
@@ -321,7 +321,7 @@ MCTS oracle interface.
 """
 function evaluate_batch(nn::AbstractNetwork, batch)
   gspec = game_spec(nn)
-  X = Flux.batch([GI.vectorize_state(gspec, b) for b in batch])
+  X = MLUtils.batch([GI.vectorize_state(gspec, b) for b in batch])
   A = [GI.actions_mask(GI.init(gspec, b)) for b in batch]
   Xnet, Anet = convert_input_tuple(nn, (X, A))
   P, V, _ = convert_output_tuple(nn, forward_normalized(nn, Xnet, Anet))

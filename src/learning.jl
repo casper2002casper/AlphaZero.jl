@@ -41,11 +41,11 @@ function convert_samples(
     wp::SamplesWeighingPolicy,
     es::AbstractVector{<:TrainingSample})
   ces = [convert_sample(gspec, wp, e) for e in es]
-  W = Flux.batch([e.w for e in ces])
-  X = typeof(ces[1].x) <: Matrix ? Flux.batch([e.x for e in ces]) : [e.x for e in ces] 
+  W = MLUtils.batch([e.w for e in ces])
+  X = typeof(ces[1].x) <: Matrix ? MLUtils.batch([e.x for e in ces]) : [e.x for e in ces] 
   A = [e.a for e in ces] 
-  P = Flux.batch([e.p for e in ces], 0)
-  V = Flux.batch([e.v for e in ces])
+  P = MLUtils.batch([e.p for e in ces], 0)
+  V = MLUtils.batch([e.v for e in ces])
   function f32(arr)
     if typeof(arr) <: Matrix
       return convert(AbstractArray{Float32}, arr)
@@ -56,8 +56,8 @@ function convert_samples(
   return map(f32, (; W, X, A, P, V))
 end
 
-function Flux.batch(xs::AbstractVector{<:AbstractVector}, pad; n=maximum(length(x) for x in xs))
-  return Flux.batch(rpad.(xs, n, pad))
+function MLUtils.batch(xs::AbstractVector{<:AbstractVector}, pad; n=maximum(length(x) for x in xs))
+  return MLUtils.batch(rpad.(xs, n, pad))
 end
 
 #####
@@ -80,7 +80,7 @@ function losses(nn, regws, params, Wmean, Hp, (W, X, A, P, V))
   cinv = params.nonvalidity_penalty
   renorm = params.rewards_renormalization
   P̂, V̂, p_invalid = Network.forward_normalized(nn, X, A)
-  P̂ = Flux.batch(P̂, 0, n=size(P,1))
+  P̂ = MLUtils.batch(P̂, 0, n=size(P,1))
   Lp = klloss_wmean(P̂, P, W) - Hp
   Lv = mse_wmean(V̂, V, W)/renorm^2
   Lreg = iszero(creg) ?
@@ -173,7 +173,7 @@ end
 
 function learning_status(tr::Trainer)
   batchsize = min(tr.params.loss_computation_batch_size, num_samples(tr))
-  batches = MLUtils.BatchView(tr.dataloader.data; batchsize, partial=true)
+  batches = MLUtils.DataLoader(tr.dataloader.data; batchsize, partial=true)
   reports = []
   ws = []
   for batch in batches
