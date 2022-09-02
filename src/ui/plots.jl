@@ -178,6 +178,13 @@ function plot_training(
     ylims=(0, Inf),
     legend=:none,
     xlabel="Iteration number")
+  # Selfplay average reward
+  selfreward = Plots.plot(1:n,
+    [it.self_play.average_reward for it in iterations],
+    title="Average Selfplay Reward",
+    #ylims=(0, Inf),
+    legend=:none,
+    xlabel="Iteration number")
   # Number of samples
   nsamples = Plots.plot(0:n,
     [0;[it.self_play.memory_size for it in iterations]],
@@ -246,9 +253,9 @@ function plot_training(
     label="Network")
   # Assembling everything together
   append!(plots,
-    [entropies, nsamples, expdepth, losses_fullmem])
+    [entropies, nsamples, expdepth, selfreward, losses_fullmem])
   append!(files,
-    ["entropies", "nsamples", "exploration_depth", "loss"])
+    ["entropies", "nsamples", "exploration_depth", "selfplay_reward", "loss"])
   for (file, plot) in zip(files, plots)
     Plots.savefig(plot, joinpath(dir, file))
   end
