@@ -71,7 +71,30 @@ end
 Network.convert_input(nn::FluxNetwork, x) =
   Network.on_gpu(nn) ? Flux.gpu(x) : x
 
-Network.convert_output(nn::FluxNetwork, x) = Flux.cpu(x)
+function Network.convert_output(nn::FluxNetwork, x::Vector{<:CuArray})
+  converted = Flux.cpu(x)
+  CUDA.unsafe_free!.(x)
+  return converted
+end
+
+function Network.convert_output(nn::FluxNetwork, x::CuArray)
+  converted = Flux.cpu(x)
+  CUDA.unsafe_free!(x)
+  return converted
+end
+
+function Network.convert_output(nn::FluxNetwork, g::GraphNeuralNetworks.GNNGraph)
+  converted = Flux.cpu(g)
+  CUDA.unsafe_free!(g.graph[1])
+  CUDA.unsafe_free!(g.graph[2])
+  CUDA.unsafe_free!(g.ndata.x)
+  CUDA.unsafe_free!(g.graph_indicator)
+  return converted
+end
+
+function Network.convert_output(nn::FluxNetwork, x::Float32)
+  return x
+end
 
 Network.params(nn::FluxNetwork) = [Flux.params(nn)]
 
@@ -163,16 +186,16 @@ function Network.set_params!(nn::TwoHeadNetwork, weights)
   Flux.loadparams!(nn.phead, weights[3])
 end
 
-function Network.forward(nn::TwoHeadGraphNeuralNetwork, state)
-  c = nn.common(state, state.ndata.x)
-  v = nn.vhead(state, c)
-  p = nn.phead(state, c)
+function Network.forward(nn::TwoHeadGraphNeuralNetwork, state; clear=false)
+  c = nn.common(state, state.ndata.x; clear) #slow
+  v = nn.vhead(state, c; clear)
+  p = nn.phead(state, c; clear) #slow
   p = softmax_nodes(state, p)
   p = Flux.unbatch(state, p)
   return (p, v)
 end
 
-function Network.forward(nn::TwoHeadNetwork, state)
+function Network.forward(nn::TwoHeadNetwork, state; clear=false)
   c = nn.common(state)
   v = nn.vhead(c)
   p = nn.phead(c)
