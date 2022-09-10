@@ -325,7 +325,7 @@ function evaluate_batch(nn::AbstractNetwork, batch)
   gspec = game_spec(nn)
   X = MLUtils.batch([GI.vectorize_state(gspec, b) for b in batch])
   A = [GI.actions_mask(GI.init(gspec, b)) for b in batch]
-  P, V = convert_output_tuple(nn, forward(nn, convert_input(nn, X); clear=true))
+  P, V = convert_output_tuple(nn, forward(nn, convert_input(nn, X)))
   P = broadcast((x,y)->x[y], P, A)
   sp = sum.(P)
   P = P ./ (sp .+ eps(eltype(sp)))
