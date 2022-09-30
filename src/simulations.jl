@@ -1,4 +1,5 @@
 using Random
+using CUDA
 #####
 ##### Utilities for distributed game simulation
 #####
@@ -285,6 +286,7 @@ function simulate_distributed(
     end
   end
   results = fetch.(tasks)
+  @everywhere CUDA.device_reset!()
   # If one of the worker raised an exception, we print it
   for r in results
     if isa(r, Distributed.RemoteException)
