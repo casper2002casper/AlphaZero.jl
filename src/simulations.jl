@@ -207,15 +207,17 @@ Play a series of games using a given [`Simulator`](@ref).
 Return a vector of objects computed by `simulator.measure`.
 """
 function simulate(
-    simulator::Simulator,
-    gspec::AbstractGameSpec,
-    p::SimParams,
-    itc::Int;
-    game_simulated)
+  simulator::Simulator,
+  gspec::AbstractGameSpec,
+  p::SimParams,
+  itc::Int;
+  process_id=1,
+  num_process=1,
+  game_simulated)
   oracles = simulator.make_oracles()
   spawn_oracles, done =
     batchify_oracles(oracles; num_workers=p.num_workers[itc], batch_size=p.batch_size[itc], p.fill_batches)
-  return Util.mapreduce(1:p.num_games[itc], p.num_workers[itc], vcat, []) do
+  return Util.mapreduce(1:p.num_games[itc], p.num_workers[itc], process_id, num_process, vcat, []) do
     oracles = spawn_oracles()
     player = simulator.make_player(oracles)
     worker_sim_id = 0
@@ -281,8 +283,10 @@ function simulate_distributed(
           gspec,
           SimParams(p; num_games=ConstSchedule(w == workers[1] ? num_each + rem : num_each)),
           itc,
+          process_id=w - 2,
+          num_process=Distributed.nworkers(),
           game_simulated=remote_game_simulated)
-        end
+      end
     end
   end
   results = fetch.(tasks)

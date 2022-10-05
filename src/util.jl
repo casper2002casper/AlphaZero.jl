@@ -166,14 +166,15 @@ This function only spawns workers on background threads (with id greater or equa
     and so it should only be used when the associated synchronization cost
     is small compared to the cost of computing individual elements.
 """
-function mapreduce(make_worker, args, num_workers, combine, init)
+function mapreduce(make_worker, args, num_workers, process_id, num_process, combine, init)
   next = 1
   ret = init
   lock = ReentrantLock()
   tasks = []
-  nbg = Threads.nthreads() - 1
+  num_threads, rest = divrem(Threads.nthreads() - 1, num_process)
   for i in 1:num_workers
-    tid = nbg > 0 ? 2 + ((i - 1) % nbg) : 1
+    start_thread = num_threads * process_id + 2
+    tid = num_threads > 0 ? start_thread + ((i - 1) % (process_id == num_process - 1 ? num_threads + rest : num_threads)) : 1
     task = ThreadPools.@tspawnat tid Util.@printing_errors begin
       local k = 0
       worker = make_worker()
