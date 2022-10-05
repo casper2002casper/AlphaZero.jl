@@ -377,7 +377,7 @@ function GI.vectorize_state(::GameSpec, s::GameEnv)
   is_transport = [0.0; 0.0; repeat([1.0, 0.0], s.job_ids[end] - 1)[membership]]
   ready_time = [0.0; maximum(s.ready_time); Float32.(vec(s.ready_time'))[membership]]
   done_time = [0.0; maximum(s.done_time); Float32.(vec(s.done_time'))[membership]]
-  action_time = [0.0; 0.0; [time_for_action(s, o) for o in 1:s.job_ids[end]-1]...]
+  action_time = floor.([0.0; 0.0; [time_for_action(s, o) for o in 1:s.job_ids[end]-1]...])
   any(isnan.(action_time)) && @show action_time*1
   any(isnan.(done_time)) && @show done_time*1
   any(isnan.(ready_time)) && @show ready_time*1
@@ -392,10 +392,10 @@ function GI.vectorize_state(::GameSpec, s::GameEnv)
     end
   end
   return GNNGraph(
-    [conj_src; disj_src],
-    [conj_tar; disj_tar],
+    UInt16.([conj_src; disj_src]),
+    UInt16.([conj_tar; disj_tar]),
     num_nodes=s.node_ids[end] - 1,
-    ndata=[is_done is_transport ready_time done_time action_time]')#
+    ndata=UInt16.([is_done is_transport ready_time done_time action_time]'))#
 end
 
 #####
