@@ -17,14 +17,12 @@ using Plots
 Estimate inference time in μs/sample.
 """
 function profile_inference(
-    exp::Experiment = Examples.experiments["connect-four"];
+    exp::Experiment = Examples.experiments["fjspt2"];
     on_gpu=true,
-    nrep=100,
-    batch_size=128,
-    num_filters=64)
-
+    nrep=400,
+    batch_size=128)
   params = exp.netparams
-  params = @set params.num_filters = num_filters
+  #params = @set params.num_filters = num_filters
   net = exp.mknet(exp.gspec, params)
   net = Network.copy(net; on_gpu, test_mode=true)
   state = GI.current_state(GI.init(exp.gspec))
@@ -40,7 +38,7 @@ Plot the inference time speedup (in μs/sample) as a function of batch-size.
 """
 function plot_inference_speedup(
   file::String,
-  exp::Experiment = Examples.experiments["connect-four"];
+  exp::Experiment = Examples.experiments["fjspt2"];
   on_gpu=true,
   num_filters=64)
 
@@ -48,8 +46,7 @@ function plot_inference_speedup(
   batch_sizes = [2^i for i in 0:N]
   ts = [
     profile_inference(exp;
-      nrep=10,
-      num_filters, batch_size, on_gpu)
+    on_gpu, nrep=200, batch_size)
     for batch_size in batch_sizes ]
 
   xticks = (0:N, map(string, batch_sizes))
@@ -65,7 +62,7 @@ end
 
 function all_plots()
   plot_inference_speedup("inference-gpu-64.png",  on_gpu=true,  num_filters=64)
-  plot_inference_speedup("inference-cpu-64.png",  on_gpu=false, num_filters=64)
-  plot_inference_speedup("inference-gpu-128.png", on_gpu=true,  num_filters=128)
-  plot_inference_speedup("inference-cpu-128.png", on_gpu=false, num_filters=128)
+  #plot_inference_speedup("inference-cpu-64.png",  on_gpu=false, num_filters=64)
+  #plot_inference_speedup("inference-gpu-128.png", on_gpu=true,  num_filters=128)
+  #plot_inference_speedup("inference-cpu-128.png", on_gpu=false, num_filters=128)
 end
