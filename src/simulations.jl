@@ -261,7 +261,8 @@ function simulate_distributed(
     p::SimParams,
     itc::Int;
     game_simulated)
-
+  #Reset GPU's
+  Distributed.@everywhere CUDA.device_reset!()
   # Spawning a task to keep count of completed simulations
   chan = Distributed.RemoteChannel(()->Channel{Nothing}(1))
   Util.@tspawn_main begin
@@ -290,6 +291,7 @@ function simulate_distributed(
     end
   end
   results = fetch.(tasks)
+  #Reset GPU's
   Distributed.@everywhere CUDA.device_reset!()
   # If one of the worker raised an exception, we print it
   for r in results
