@@ -211,7 +211,7 @@ function simulate(
   gspec::AbstractGameSpec,
   p::SimParams,
   itc::Int;
-  process_id=1,
+  process_id=0,
   num_process=1,
   game_simulated)
   oracles = simulator.make_oracles()
