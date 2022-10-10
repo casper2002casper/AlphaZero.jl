@@ -89,7 +89,7 @@ function run(env::Env, eval::Evaluation, progress=nothing)
       return TwoPlayers(player, baseline)
     end
   end
-  samples, elapsed = @timed simulate(
+  samples, elapsed = @timed simulate_distributed(
     simulator, env.gspec, eval.sim, env.itc,
     game_simulated=(() -> next!(progress)))
   gamma = env.params.self_play.mcts.gamma
