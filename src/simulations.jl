@@ -284,7 +284,7 @@ function simulate_distributed(
           gspec,
           SimParams(p; num_games=ConstSchedule(w == workers[1] ? num_each + rem : num_each)),
           itc,
-          process_id=w - 2,
+          process_id=w ==max(0, w - 2),
           num_process=Distributed.nworkers(),
           game_simulated=remote_game_simulated)
       end
