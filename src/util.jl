@@ -193,6 +193,7 @@ function mapreduce(make_worker, args, num_workers, process_id, num_process, comb
         Base.unlock(lock)
       end
       worker.terminate()
+      return 
     end
     push!(tasks, task)
   end

@@ -276,10 +276,11 @@ function simulate_distributed(
   num_each, rem = divrem(p.num_games[itc], Distributed.nworkers())
   @assert num_each >= 1
   workers = Distributed.workers()
+  @show workers
   tasks = map(workers) do w
-    Distributed.@spawnat w begin
-      Util.@printing_errors begin
-        simulate(
+    return Distributed.@spawnat w begin
+      return Util.@printing_errors begin
+        return simulate(
           simulator,
           gspec,
           SimParams(p; num_games=ConstSchedule(w == workers[1] ? num_each + rem : num_each)),
