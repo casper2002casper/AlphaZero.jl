@@ -30,10 +30,10 @@ function convert_sample(
     w = Float32[n]
   end
   x = GI.vectorize_state(gspec, e.s)
-  a = GI.actions_mask(GI.init(gspec, e.s))
+  #a = GI.actions_mask(GI.init(gspec, e.s))
   p = Float32.(e.π)
   v = [e.z]
-  return (; w, x, a, p, v)
+  return (; w, x, p, v)
 end
 
 function convert_samples(
@@ -43,7 +43,7 @@ function convert_samples(
   ces = [convert_sample(gspec, wp, e) for e in es]
   W = MLUtils.batch([e.w for e in ces])
   X = typeof(ces[1].x) <: Matrix ? MLUtils.batch([e.x for e in ces]) : [e.x for e in ces] 
-  A = [e.a for e in ces] 
+  #A = [e.a for e in ces] 
   P = MLUtils.batch([e.p for e in ces], 0)
   V = MLUtils.batch([e.v for e in ces])
   function f32(arr)
@@ -53,7 +53,7 @@ function convert_samples(
       return arr
     end
   end
-  return map(f32, (; W, X, A, P, V))
+  return map(f32, (; W, X, P, V))
 end
 
 function MLUtils.batch(xs::AbstractVector{<:AbstractVector}, pad; n=maximum(length(x) for x in xs))
@@ -74,23 +74,23 @@ entropy_wmean(π, w) = -sum(π .* log.(π .+ eps(eltype(π))) .* w) / sum(w)
 
 wmean(x, w) = sum(x .* w) / sum(w)
 
-function losses(nn, regws, params, Wmean, Hp, (W, X, A, P, V))
+function losses(nn, regws, params, Wmean, Hp, (W, X, P, V))
   # `regws` must be equal to `Network.regularized_params(nn)`
   creg = params.l2_regularization
   cinv = params.nonvalidity_penalty
   renorm = params.rewards_renormalization
-  P̂, V̂, p_invalid = Network.forward_normalized(nn, X, A)
+  P̂, V̂ = Network.forward(nn, X)
   P̂ = MLUtils.batch(P̂, 0, n=size(P,1))
   Lp = klloss_wmean(P̂, P, W) - Hp
   Lv = mse_wmean(V̂, V, W)/renorm^2
   Lreg = iszero(creg) ?
     zero(Lv) :
     creg * sum(sum(w .* w) for w in regws)
-  Linv = iszero(cinv) ?
-    zero(Lv) :
-    cinv * wmean(p_invalid, W)
-  L = (mean(W) / Wmean) * (Lp + Lv + Lreg + Linv)
-  return (L, Lp, Lv, Lreg, Linv)
+  # Linv = iszero(cinv) ?
+  #   zero(Lv) :
+  #   cinv * wmean(p_invalid, W)
+  L = (mean(W) / Wmean) * (Lp + Lv + Lreg)
+  return (L, Lp, Lv, Lreg, 0)
 end
 
 #####
@@ -110,7 +110,7 @@ struct Trainer
     end
     data = convert_samples(gspec, params.samples_weighing_policy, samples)
     network = Network.copy(network, on_gpu=params.use_gpu, test_mode=test_mode)
-    W, X, A, P, V = data
+    W, X, P, V = data
     Wmean = mean(W)
     Hp = entropy_wmean(P, W)
     # Create a batches stream
@@ -160,11 +160,11 @@ function learning_status(tr::Trainer, samples)
   # As done now, this is slighly inefficient as we solve the
   # same neural network inference problem twice
   samples = Network.convert_input_tuple(tr.network, samples)
-  W, X, A, P, V = samples
+  W, X, P, V = samples
   regws = Network.regularized_params(tr.network)
   Ls = losses(tr.network, regws, tr.params, tr.Wmean, tr.Hp, samples)
   Ls = Network.convert_output_tuple(tr.network, Ls)
-  Pnet, _ = Network.forward_normalized(tr.network, X, A)
+  Pnet, _ = Network.forward(tr.network, X)
   Pnet = batch(Pnet, 0)
   Hpnet = entropy_wmean(Pnet, W)
   Hpnet = Network.convert_output(tr.network, Hpnet)

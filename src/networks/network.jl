@@ -271,11 +271,11 @@ All tensors manipulated by this function have elements of type `Float32`.
 """
 function forward_normalized(nn::AbstractNetwork, state, actions_mask)
   p, v = forward(nn, state)
-  p = broadcast((x,y)->x[y], p, actions_mask)#[p[i][actions_mask[i]] for i in 1:length(actions_mask)]
-  sp = sum.(p)
-  p = p ./ (sp .+ eps(eltype(sp)))
-  p_invalid = 1 .- sp
-  return (p, v, p_invalid)
+  #p = broadcast((x,y)->x[y], p, actions_mask)#[p[i][actions_mask[i]] for i in 1:length(actions_mask)]
+  #sp = sum.(p)
+  #p = p ./ (sp .+ eps(eltype(sp)))
+  #p_invalid = 1 .- sp
+  return (p, v, 0)
 end
 
 function to_singletons(x)
@@ -301,14 +301,14 @@ may want to use a `BatchedOracle` along with an inference server that uses
 """
 function evaluate(nn::AbstractNetwork, state)
   gspec = game_spec(nn)
-  actions_mask = GI.actions_mask(GI.init(gspec, state))
+  #actions_mask = GI.actions_mask(GI.init(gspec, state))
   x = MLUtils.batch([GI.vectorize_state(gspec, state)])
   xnet = convert_input(nn, x)
   p, v = convert_output_tuple(nn, forward(nn, xnet))
-  p = p[1][actions_mask]
-  sp = sum(p)
-  p = p ./ (sp .+ eps(eltype(sp)))
-  return (p, v[1])
+  #p = p[1][actions_mask]
+  #sp = sum(p)
+  #p = p ./ (sp .+ eps(eltype(sp)))
+  return (p[1], v[1])
 end
 
 (nn::AbstractNetwork)(state) = evaluate(nn, state)
@@ -324,11 +324,11 @@ MCTS oracle interface.
 function evaluate_batch(nn::AbstractNetwork, batch)
   gspec = game_spec(nn)
   X = MLUtils.batch([GI.vectorize_state(gspec, b) for b in batch])
-  A = [GI.actions_mask(GI.init(gspec, b)) for b in batch]
+  #A = [GI.actions_mask(GI.init(gspec, b)) for b in batch]
   P, V = convert_output_tuple(nn, forward(nn, convert_input(nn, X)))
-  P = broadcast((x,y)->x[y], P, A)
-  sp = sum.(P)
-  P = P ./ (sp .+ eps(eltype(sp)))
+  #P = broadcast((x,y)->x[y], P, A)
+  #sp = sum.(P)
+  #P = P ./ (sp .+ eps(eltype(sp)))
   return [(P[i], V[1,i]) for i in eachindex(batch)]
 end
 
