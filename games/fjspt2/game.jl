@@ -160,7 +160,7 @@ GI.spec(g::GameEnv) = GameSpec(ConstSchedule(g.M) => ConstSchedule(g.M), ConstSc
 
 GI.two_players(::GameSpec) = false
 
-GI.state_dim(spec::GameSpec) = (5, 0)
+GI.state_dim(spec::GameSpec) = (6, 0)
 
 GI.state_type(spec::GameSpec) = return GameEnv
 
@@ -197,8 +197,7 @@ GI.actions(spec::GameSpec) = []
 # function GI.available_actions(g::GameEnv)
 #   return reduce(vcat, [next_action(g, i) for i in 1:g.N])
 # end
-
-function GI.available_actions(g::GameEnv)
+function next_nodes(g::GameEnv)
   nodes = Vector{UInt16}()
   for (j, o) in enumerate(g.job_ids[1:end-1])
     while (o != g.job_ids[j+1])
@@ -224,11 +223,12 @@ function GI.available_actions(g::GameEnv)
   return nodes
 end
 
+function GI.available_actions(g::GameEnv)
+  return collect(1:length(next_nodes(g)))
+end
+
 function GI.actions_mask(g::GameEnv)
-  mask = falses(g.node_ids[end] - 1)
-  available = GI.available_actions(g)
-  mask[available] .= true
-  return mask
+  return trues(length(next_nodes(g)))
 end
 
 function properties(action, node_ids)
@@ -238,6 +238,7 @@ function properties(action, node_ids)
 end
 
 function GI.play!(g::GameEnv, action)
+  action = next_nodes(g)[action]
   o, local_index = properties(action, g.node_ids)
   is_transport = (g.assigned[o, 1] == 0)
   is_first = o in g.job_ids
@@ -378,8 +379,8 @@ function GI.vectorize_state(::GameSpec, s::GameEnv)
   ready_time = [0.0; maximum(s.ready_time); Float32.(vec(s.ready_time'))[membership]]
   done_time = [0.0; maximum(s.done_time); Float32.(vec(s.done_time'))[membership]]
   action_time = floor.([0.0; 0.0; [time_for_action(s, o) for o in 1:s.job_ids[end]-1]...])
-  any(isnan.(action_time)) && @show action_time*1
-  any(isnan.(done_time)) && @show done_time*1
+  is_next_action = zeros(Float32, s.node_ids[end] - 1)
+  is_next_action[next_nodes(s)] .= 1.0
   any(isnan.(ready_time)) && @show ready_time*1
   for o in 1:(s.job_ids[end]-1)
     if (length(node_group(s, o, 2 * o - 1, 2 * o)) != length(time_for_action(s, o)))
@@ -395,7 +396,7 @@ function GI.vectorize_state(::GameSpec, s::GameEnv)
     UInt16.([conj_src; disj_src]),
     UInt16.([conj_tar; disj_tar]),
     num_nodes=s.node_ids[end] - 1,
-    ndata=UInt16.([is_done is_transport ready_time done_time action_time]'))#
+    ndata=UInt16.([is_done is_transport ready_time done_time action_time is_next_action]'))#
 end
 
 #####
