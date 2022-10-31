@@ -261,7 +261,7 @@ end
 ##### User interface
 #####
 
-GI.action_string(::GameSpec, a) = string(a)
+GI.action_string(::GameEnv, a) = string(a)
 
 function GI.parse_action(g::GameSpec, str)
   try
@@ -292,7 +292,7 @@ function GI.render(g::GameEnv; with_position_names=true, botmargin=true)
   print(pcol, pname, " plays:", crayon"reset", "\n\n")
   # Print legend
   for col in 1:NUM_COLS
-    print(GI.action_string(GI.spec(g), col), " ")
+    print(GI.action_string(g, col), " ")
   end
   print("\n")
   # Print board

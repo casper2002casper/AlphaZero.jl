@@ -295,8 +295,8 @@ end
 ##### Interaction APIc
 #####
 
-function GI.action_string(spec::GameSpec, o)
-  mn = o2ji(o, spec.M.second, spec.N.second)
+function GI.action_string(g::GameEnv, o)
+  mn = o2ji(o, g.M, g.N)
   return string("job: ", mn[2], " machine: ", mn[1])
 end
 

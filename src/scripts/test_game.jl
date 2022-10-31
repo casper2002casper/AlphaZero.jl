@@ -82,7 +82,7 @@ function test_game(gspec::AbstractGameSpec; n=100)
       @assert isa(GI.heuristic_value(game), Float64)
       state_copy = deepcopy(state)
       a = rand(GI.available_actions(game))
-      @assert isa(GI.action_string(gspec, a), String)
+      @assert isa(GI.action_string(game, a), String)
       GI.play!(game, a)
       @assert state_copy == state "States must appear as persistent."
       @assert isa(GI.white_reward(game), Float64)

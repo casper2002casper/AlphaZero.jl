@@ -119,7 +119,7 @@ end
 ##### Displaying state statistics
 #####
 
-function print_state_statistics(gspec, stats::StateStats)
+function print_state_statistics(game, stats::StateStats)
   prob   = Log.ColType(nothing, x -> fmt(".1f", 100 * x) * "%")
   val    = Log.ColType(nothing, x -> fmt("+.2f", x))
   bigint = Log.ColType(nothing, n -> format(ceil(Int, n), commas=true))
@@ -131,7 +131,7 @@ function print_state_statistics(gspec, stats::StateStats)
     ("Vnet",  val,    r -> r.Vnet)],
     header_style=Log.BOLD)
   atable = Log.Table([
-    ("",      alabel, r -> GI.action_string(gspec, r[1])),
+    ("",      alabel, r -> GI.action_string(game, r[1])),
     ("",      prob,   r -> r[2].P),
     ("Pmcts", prob,   r -> r[2].Pmcts),
     ("Pnet",  prob,   r -> r[2].Pnet),
@@ -153,7 +153,7 @@ end
 function compute_and_print_state_statistics(exp)
   if !GI.game_terminated(exp.game)
     stats = state_statistics(exp.game, exp.player, exp.turn, exp.memory)
-    print_state_statistics(GI.spec(exp.game), stats)
+    print_state_statistics(exp.game, stats)
     return stats
   else
     return nothing

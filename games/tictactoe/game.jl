@@ -172,7 +172,7 @@ end
 ##### Interaction API
 #####
 
-function GI.action_string(::GameSpec, a)
+function GI.action_string(::GameEnv, a)
   string(Char(Int('A') + a - 1))
 end
 
@@ -232,7 +232,7 @@ function GI.render(g::GameEnv; with_position_names=true, botmargin=true)
     if with_position_names
       print(" | ")
       for x in 1:BOARD_SIDE
-        print(GI.action_string(GI.spec(g), pos_of_xy((x, y))), " ")
+        print(GI.action_string(g, pos_of_xy((x, y))), " ")
       end
     end
     print("\n")

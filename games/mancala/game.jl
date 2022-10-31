@@ -261,7 +261,7 @@ end
 ##### User interface
 #####
 
-GI.action_string(::GameSpec, a) = string(a)
+GI.action_string(::GameEnv, a) = string(a)
 
 function GI.parse_action(::GameSpec, str)
   try

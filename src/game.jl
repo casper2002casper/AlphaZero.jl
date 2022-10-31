@@ -210,7 +210,7 @@ Print the game state on the standard output.
 function render end
 
 """
-    action_string(::AbstractGameSpec, action) :: String
+    action_string(::AbstractGameEnv, action) :: String
 
 Return a human-readable string representing the provided action.
 """

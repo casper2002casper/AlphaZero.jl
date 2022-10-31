@@ -403,7 +403,7 @@ end
 ##### Interaction APIc
 #####
 
-function GI.action_string(spec::GameSpec, o)
+function GI.action_string(g::GameEnv, o)
   return string(o)
 end
 

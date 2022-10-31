@@ -30,7 +30,7 @@ end
 ##### Interaction API (from AlphaZero's tictactoe)
 #####
 
-function action_string(spec, a)
+function action_string(g, a)
   string(Char(Int('A') + a))
 end
 
