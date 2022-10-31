@@ -347,7 +347,7 @@ function GI.vectorize_state(::GameSpec, s::GameEnv)
       k = filter(!=(0xff), s.last_o_k)
       prev_conj = is_first ? [1] : (s.node_ids[o-1]+(s.assigned[o-1, 1] == 0 ? count(s.last_o_k .!= 0xff) : 1)):s.node_ids[o]-1
       next_conj = s.node_ids[o]:(s.node_ids[o]+length(k)-1)
-      is_started = k .!= 0 
+      is_started = k .!= 0
       prev_disj = s.node_ids[k[is_started]]
       next_disj = next_conj[is_started]
     end
@@ -381,17 +381,6 @@ function GI.vectorize_state(::GameSpec, s::GameEnv)
   action_time = floor.([0.0; 0.0; [time_for_action(s, o) for o in 1:s.job_ids[end]-1]...])
   is_next_action = zeros(Float32, s.node_ids[end] - 1)
   is_next_action[next_nodes(s)] .= 1.0
-  any(isnan.(ready_time)) && @show ready_time*1
-  for o in 1:(s.job_ids[end]-1)
-    if (length(node_group(s, o, 2 * o - 1, 2 * o)) != length(time_for_action(s, o)))
-      @show o
-      @show s.K
-      @show s.assigned[o, :]
-      @show s.process_time[o, :]
-      @show node_group(s, o, 2 * o - 1, 2 * o) * 1
-      @show time_for_action(s, o) * 1
-    end
-  end
   return GNNGraph(
     UInt16.([conj_src; disj_src]),
     UInt16.([conj_tar; disj_tar]),
@@ -560,10 +549,10 @@ function remove_machine!(spec::GameSpec, g::GameEnv, rng::AbstractRNG, itc)
   removed_machine = rand(rng, 1:g.M)
   keep_machines = trues(g.M + 1)
   keep_machines[removed_machine] = false
-  if(any(sum(g.process_time[g.assigned[:,2].==0,removed_machine] .!= 0xff, dims=2) .== 0))
+  if (any(sum(g.process_time[g.assigned[:, 2].==0, removed_machine] .!= 0xff, dims=2) .== 0))
     return false #if no other machine available for future operation, abort
   end
-  g.process_time[:,removed_machine] .= 0xff
+  g.process_time[:, removed_machine] .= 0xff
   is_affected = (g.assigned[:, 2] .== 0) .&& (g.process_time[:, removed_machine] .!= 0xff)
   g.node_ids -= cumsum([false; is_affected])
 
