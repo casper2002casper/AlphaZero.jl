@@ -350,7 +350,7 @@ function GI.vectorize_state(::GameSpec, s::GameEnv)
     append!(tar, [o_mk_tar; o_mk_src])
     append!(edge_data, repeat(o_mk_data, 2))
   end
-  m_k_src = repeat(num_operations:num_operations+M-1, s.K)
+  m_k_src = repeat(num_operations+1:num_operations+M, s.K)
   m_k_tar = vcat([fill(num_operations + M + k, M) for k in 1:s.K]...)
   m_k_data = vcat([s.transport_time[s.assigned[s.last_o_k[k], 2], 1:M] for k in 1:s.K]...)
   #@assert length(m_k_src) == length(m_k_data) == length(m_k_tar)
