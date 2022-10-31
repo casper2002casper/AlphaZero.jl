@@ -169,7 +169,7 @@ GI.symmetries(spec::Spec, state) = spec.env.symmetries(spec.env.rlenv, state)
 
 GI.render(env::Env) = env.render(env.rlenv)
 
-GI.action_string(spec::Spec, a) = spec.env.action_string(spec.env.rlenv, a)
+GI.action_string(env::Env, a) = env.action_string(env.rlenv, a)
 
 GI.parse_action(spec::Spec, s) = spec.env.parse_action(spec.env.rlenv, s)
 
