@@ -4,7 +4,7 @@ along with a library of standard architectures.
 """
 module FluxLib
 
-export SimpleNet, SimpleNetHP, ResNet, ResNetHP, Gcn, GcnHP, Gin, GinHP, GraphSAGE, GraphSAGEHP
+export SimpleNet, SimpleNetHP, ResNet, ResNetHP, Gcn, GcnHP, Gin, GinHP, Gat, GatHP, GraphSAGE, GraphSAGEHP
 
 using ..AlphaZero
 
@@ -20,15 +20,16 @@ array_on_gpu(::Array) = false
 array_on_gpu(::CuArray) = true
 array_on_gpu(arr) = error("Usupported array type: ", typeof(arr))
 
-using Flux: relu, softmax, flatten, σ
+using Flux: relu, softmax, flatten, σ, cpu
 using Flux: Chain, Dense, Conv, BatchNorm, SkipConnection, Parallel
 using GraphNeuralNetworks: GCNConv, SAGEConv
+using NNlib: scatter
 import Zygote
 
 function unbatch(graph_indicator, x, num_graphs)
-  length(x)==1 && return [x]
-  changes = graph_indicator[1:end-1] .!= graph_indicator[2:end] 
-  index =  [0; Array(findall(changes)); length(graph_indicator)]
+  length(x) == 1 && return [x]
+  changes = graph_indicator[1:end-1] .!= graph_indicator[2:end]
+  index = [0; Array(findall(changes)); length(graph_indicator)]
   return [x[index[i]+1:index[i+1]] for i in 1:num_graphs]
 end
 
@@ -51,7 +52,7 @@ network interface with the following exceptions:
 """
 abstract type FluxNetwork <: AbstractNetwork end
 
-function Base.copy(nn::Net) where Net <: FluxNetwork
+function Base.copy(nn::Net) where {Net<:FluxNetwork}
   #new = Net(Network.hyperparams(nn))
   #Flux.loadparams!(new, Flux.params(nn))
   #return new
@@ -86,6 +87,7 @@ function lossgrads(f, args...)
 end
 
 function Network.train!(callback, nn::FluxNetwork, opt::Adam, loss, data, n)
+  CUDA.memory_status()
   optimiser = Flux.ADAM(opt.lr)
   params = Flux.params(nn)
   for (i, d) in enumerate(data)
@@ -94,13 +96,14 @@ function Network.train!(callback, nn::FluxNetwork, opt::Adam, loss, data, n)
       loss(d...)
     end
     Flux.update!(optimiser, params, grads)
+    CUDA.memory_status()
     GC.gc(true)
     callback(i, l)
   end
 end
 
 function Network.train!(
-    callback, nn::FluxNetwork, opt::CyclicNesterov, loss, data, n)
+  callback, nn::FluxNetwork, opt::CyclicNesterov, loss, data, n)
   lr = CyclicSchedule(
     opt.lr_base,
     opt.lr_high,
@@ -126,8 +129,10 @@ end
 regularized_params_(l) = []
 regularized_params_(l::GraphNeuralNetworks.GCNConv) = [l.weight, l.bias]
 regularized_params_(l::GraphNeuralNetworks.SAGEConv) = [l.weight, l.bias]
+regularized_params_(l::GraphNeuralNetworks.GATv2Conv) = [regularized_params_(l.dense_i)..., regularized_params_(l.dense_j)..., regularized_params_(l.dense_e)..., l.bias, l.a]
 regularized_params_(l::Flux.Dense) = [l.weight, l.bias]
 regularized_params_(l::Flux.Conv) = [l.weight]
+regularized_params_(l::Flux.BatchNorm) = [l.β, l.γ]
 
 function Network.regularized_params(net::FluxNetwork)
   return (w for l in Flux.modules(net) for w in regularized_params_(l))
@@ -135,7 +140,7 @@ end
 
 function Network.gc(::FluxNetwork)
   GC.gc(true)
-  # CUDA.reclaim()
+  CUDA.reclaim()
 end
 
 #####
@@ -157,19 +162,58 @@ abstract type TwoHeadNetwork <: FluxNetwork end
 
 abstract type TwoHeadGraphNeuralNetwork <: TwoHeadNetwork end
 
+abstract type GATGraphNeuralNetwork <: TwoHeadGraphNeuralNetwork end
+
 Network.params(nn::TwoHeadNetwork) = [Flux.params(nn.common), Flux.params(nn.vhead), Flux.params(nn.phead)]
 
-function Network.set_params!(nn::TwoHeadNetwork, weights) 
+function Network.set_params!(nn::TwoHeadNetwork, weights)
   Flux.loadparams!(nn.common, weights[1])
   Flux.loadparams!(nn.vhead, weights[2])
   Flux.loadparams!(nn.phead, weights[3])
+end
+
+function Network.forward(nn::GATGraphNeuralNetwork, g)
+  c = nn.common(g, g.ndata.x)
+  is_machine = g.ndata.x[2, :] .== 1.0
+  machine_nodes = findall(is_machine)
+  is_vehicle = g.ndata.x[3, :] .== 1.0
+  vehicle_nodes = findall(is_vehicle)
+  is_next_op = g.ndata.x[4, :] .== 1.0
+  next_op_nodes = findall(is_next_op) |> cpu
+
+  A = adjacency_matrix(g)
+  machine_connections = A[is_next_op, is_machine] .== 1
+  num_machines_per_o = sum(machine_connections, dims=2) |> cpu
+  vehicle_connections = A[is_next_op, is_vehicle] .== 1
+  num_vehicles_per_o = sum(vehicle_connections, dims=2) |> cpu
+
+  operation_index = vcat([fill(next_op_nodes[i], num_machines_per_o[i] * num_vehicles_per_o[i]) for i in eachindex(next_op_nodes)]...)
+  machine_index = vcat([repeat(machine_nodes[machine_connections[i, :]], inner=num_vehicles_per_o[i]) for i in eachindex(next_op_nodes)]...)
+  vehicle_index = vcat([repeat(vehicle_nodes[vehicle_connections[i, :]], outer=num_machines_per_o[i]) for i in eachindex(next_op_nodes)]...)
+  graph_index = g.graph_indicator[operation_index]
+
+  g_data = vcat(
+    scatter(mean, c[:, is_next_op], g.graph_indicator[is_next_op]),
+    scatter(mean, c[:, is_machine], g.graph_indicator[is_machine]),
+    scatter(mean, c[:, is_vehicle], g.graph_indicator[is_vehicle]))
+  p_data = vcat(
+    c[:, operation_index],
+    c[:, machine_index],
+    c[:, vehicle_index],
+    g_data[:, graph_index])
+  
+  v = nn.vhead(g_data)
+  p = nn.phead(p_data)
+  p = unbatch(graph_index, p, g.num_graphs)
+  p = softmax.(p)
+  return (p, v)
 end
 
 function Network.forward(nn::TwoHeadGraphNeuralNetwork, state)
   c = nn.common(state, state.ndata.x)
   v = nn.vhead(state, c)
   p = nn.phead(state, c)
-  is_next_action = state.ndata.x[6,:] .== 1
+  is_next_action = state.ndata.x[6, :] .== 1
   p = unbatch(state.graph_indicator[is_next_action], p[is_next_action], state.num_graphs)
   p = softmax.(p)
   return (p, v)
@@ -183,7 +227,7 @@ function Network.forward(nn::TwoHeadNetwork, state)
 end
 
 # Flux.@functor does not work with abstract types
-function Flux.functor(nn::Net) where Net <: TwoHeadNetwork
+function Flux.functor(nn::Net) where {Net<:TwoHeadNetwork}
   children = (nn.common, nn.vhead, nn.phead)
   constructor = cs -> Net(nn.gspec, nn.hyper, cs...)
   return (children, constructor)
@@ -203,5 +247,6 @@ include("architectures/simplenet.jl")
 include("architectures/resnet.jl")
 include("architectures/gcn.jl")
 include("architectures/gin.jl")
+include("architectures/gat.jl")
 include("architectures/graphSAGE.jl")
 end

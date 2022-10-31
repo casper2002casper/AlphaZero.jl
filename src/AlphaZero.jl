@@ -147,7 +147,7 @@ module AlphaZero
 
   using .NetLib
   export NetLib
-  export SimpleNet, SimpleNetHP, ResNet, ResNetHP, Gcn, GcnHP, Gin, GinHP, GraphSAGE, GraphSAGEHP
+  export SimpleNet, SimpleNetHP, ResNet, ResNetHP, Gcn, GcnHP, Gin, GinHP, Gat, GatHP, GraphSAGE, GraphSAGEHP
 
   # A structure that contains the information necessary to replicate a training session
   include("experiments.jl")

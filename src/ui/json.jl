@@ -10,7 +10,7 @@ for T in [
     Report.Learning, Report.Samples, Report.StageSamples, Report.Memory,
     Report.SelfPlay, Report.Perfs, Report.Iteration, Report.Initial,
     # Network Hyperparameters
-    NetLib.SimpleNetHP, NetLib.ResNetHP, NetLib.GcnHP, NetLib.GinHP, NetLib.GraphSAGEHP,
+    NetLib.SimpleNetHP, NetLib.ResNetHP, NetLib.GcnHP, NetLib.GinHP, NetLib.GatHP, NetLib.GraphSAGEHP,
     # Parameters
     Params, SelfPlayParams, LearningParams, ArenaParams,
     SimParams, MctsParams, MemAnalysisParams,
