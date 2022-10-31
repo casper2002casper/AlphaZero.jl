@@ -302,6 +302,7 @@ Simulate a game by an [`AbstractPlayer`](@ref).
 """
 function play_game(gspec, player; flip_probability=0., itc=1, rng::AbstractRNG=Random.GLOBAL_RNG)
   game = GI.init(gspec, itc, rng)
+  GI.setup!(game)
   trace = Trace(GI.current_state(game))
   while true
     if GI.game_terminated(game)

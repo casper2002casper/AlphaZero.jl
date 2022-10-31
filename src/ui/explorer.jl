@@ -250,6 +250,7 @@ function interpret!(exp::Explorer, stats, cmd, args=[])
 end
 
 function start_explorer(exp::Explorer)
+  GI.setup!(exp.game)
   while true
     # Print the state
     GI.render(exp.game)

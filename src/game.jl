@@ -167,6 +167,8 @@ function heuristic_value end
 
 disturbe!(gspec::AbstractGameSpec, game::AbstractGameEnv, rng::AbstractRNG, itc) = false
 
+function setup!(g::AbstractGameEnv) end
+
 #####
 ##### Symmetries
 #####
