@@ -165,7 +165,7 @@ end
 
 # action_string, parse action require Env instead of Spec for OpenSpiel functions
 GI.action_string(env::Env, action) = action_to_string(env.state, action)
-GI.action_string(spec::Spec, action) = spec.action_string(spec, action)
+GI.action_string(env::Env, action) = env.action_string(env, action)
 
 GI.parse_action(env::Env, str::String) = string_to_action(env.state, str)
 GI.parse_action(spec::Spec, str::String) = spec.parse_action(spec, str)
