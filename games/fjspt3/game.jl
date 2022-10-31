@@ -357,6 +357,10 @@ function GI.vectorize_state(::GameSpec, s::GameEnv)
   append!(src, [m_k_src; m_k_tar]) #bidirectional
   append!(tar, [m_k_tar; m_k_src])
   append!(edge_data, repeat(m_k_data, 2))
+  #self loops
+  append!(src, 1:num_nodes)
+  append!(tar, 1:num_nodes)
+  append!(edge_data, zeros(Float32, num_nodes))
   return GNNGraph(
     src,
     tar,
