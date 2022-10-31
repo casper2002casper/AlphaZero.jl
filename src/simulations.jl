@@ -1,5 +1,4 @@
 using Random
-
 #####
 ##### Utilities for distributed game simulation
 #####
@@ -47,12 +46,12 @@ end
 # Return a request channel (see [`Batchifier.launch_server`](@ref)).
 # """
 function launch_inference_server(
-    net::AbstractNetwork;
-    num_workers,
-    batch_size,
-    fill_batches)
+  net::AbstractNetwork;
+  num_workers,
+  batch_size,
+  fill_batches)
 
-  return Batchifier.launch_server(;num_workers, batch_size) do batch
+  return Batchifier.launch_server(; num_workers, batch_size) do batch
     fill_and_evaluate(net, batch; batch_size, fill_batches)
   end
 end
@@ -70,13 +69,13 @@ end
 # is queried.
 # """
 function launch_inference_server(
-    net1::AbstractNetwork,
-    net2::AbstractNetwork;
-    num_workers,
-    batch_size,
-    fill_batches)
+  net1::AbstractNetwork,
+  net2::AbstractNetwork;
+  num_workers,
+  batch_size,
+  fill_batches)
 
-  return Batchifier.launch_server(;num_workers, batch_size) do batch
+  return Batchifier.launch_server(; num_workers, batch_size) do batch
     n = length(batch)
     mask1 = findall(b -> b.netid == 1, batch)
     mask2 = findall(b -> b.netid == 2, batch)
@@ -123,26 +122,26 @@ send_done!(reqc) = () -> Batchifier.client_done!(reqc)
 zipthunk(f1, f2) = () -> (f1(), f2())
 
 # Two neural network oracles
-function batchify_oracles(os::Tuple{AbstractNetwork, AbstractNetwork}; kwargs...)
+function batchify_oracles(os::Tuple{AbstractNetwork,AbstractNetwork}; kwargs...)
   reqc = launch_inference_server(os[1], os[2]; kwargs...)
   make1() = Batchifier.BatchedOracle(reqc, st -> (state=st, netid=1))
   make2() = Batchifier.BatchedOracle(reqc, st -> (state=st, netid=2))
   return zipthunk(make1, make2), send_done!(reqc)
 end
 
-function batchify_oracles(os::Tuple{<:Any, AbstractNetwork}; kwargs...)
+function batchify_oracles(os::Tuple{<:Any,AbstractNetwork}; kwargs...)
   reqc = launch_inference_server(os[2]; kwargs...)
   make2() = Batchifier.BatchedOracle(reqc)
   return zipthunk(ret_oracle(os[1]), make2), send_done!(reqc)
 end
 
-function batchify_oracles(os::Tuple{AbstractNetwork, <:Any}; kwargs...)
+function batchify_oracles(os::Tuple{AbstractNetwork,<:Any}; kwargs...)
   reqc = launch_inference_server(os[1]; kwargs...)
   make1() = Batchifier.BatchedOracle(reqc)
   return zipthunk(make1, ret_oracle(os[2])), send_done!(reqc)
 end
 
-function batchify_oracles(os::Tuple{<:Any, <:Any}; kwargs...)
+function batchify_oracles(os::Tuple{<:Any,<:Any}; kwargs...)
   return zipthunk(ret_oracle(os[1]), ret_oracle(os[2])), do_nothing!
 end
 
@@ -178,10 +177,10 @@ across multiple threads and multiple machines.
   - `measure(trace, colors_flipped, player)`: the function that is used to
       take measurements after each game simulation.
 """
-struct Simulator{MakePlayer, Oracles, Measure}
-  make_player :: MakePlayer
-  make_oracles :: Oracles
-  measure :: Measure
+struct Simulator{MakePlayer,Oracles,Measure}
+  make_player::MakePlayer
+  make_oracles::Oracles
+  measure::Measure
 end
 
 """
@@ -225,7 +224,7 @@ function simulate(
     # For each worker
     function simulate_game(sim_id)
       # Reset the player periodically
-      if !isnothing(p.reset_every) && worker_sim_id % p.reset_every == 0 
+      if !isnothing(p.reset_every) && worker_sim_id % p.reset_every == 0
         reset_player!(player)
         seed = sim_id
       end
@@ -256,15 +255,15 @@ Identical to [`simulate`](@ref) but splits the work across all available distrib
 workers, whose number is given by `Distributed.nworkers()`.
 """
 function simulate_distributed(
-    simulator::Simulator,
-    gspec::AbstractGameSpec,
-    p::SimParams,
-    itc::Int;
-    game_simulated)
+  simulator::Simulator,
+  gspec::AbstractGameSpec,
+  p::SimParams,
+  itc::Int;
+  game_simulated)
   #Reset GPU's
   Distributed.@everywhere CUDA.device_reset!()
   # Spawning a task to keep count of completed simulations
-  chan = Distributed.RemoteChannel(()->Channel{Nothing}(1))
+  chan = Distributed.RemoteChannel(() -> Channel{Nothing}(1))
   Util.@tspawn_main begin
     for i in 1:p.num_games[itc]
       take!(chan)
@@ -305,7 +304,7 @@ end
 
 function compute_redundancy(states)
   unique = Set(states)
-  return 1. - length(unique) / length(states)
+  return 1.0 - length(unique) / length(states)
 end
 
 # From a vector of measures, extract all rewards w.r.t. white and compute redundancy
