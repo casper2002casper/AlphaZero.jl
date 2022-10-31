@@ -26,6 +26,9 @@ module Examples
   include("../games/fjspt2/main.jl")
   export FJSPT2
 
+  include("../games/fjspt3/main.jl")
+  export FJSPT3
+
   include("../games/dfjspt/main.jl")
   export DFJSPT
 
@@ -39,6 +42,7 @@ module Examples
     "fjsp" => FJSP.Training.experiment.gspec,
     "fjspt" => FJSPT.Training.experiment.gspec,
     "fjspt2" => FJSPT2.Training.experiment.gspec,
+    "fjspt3" => FJSPT3.Training.experiment.gspec,
     "dfjspt" => DFJSPT.Training.experiment.gspec)
     # "ospiel_ttt" => OSpielTictactoe.GameSpec()
   # ospiel_ttt is added from openspiel_example.jl when OpenSpiel.jl is imported
@@ -53,6 +57,7 @@ module Examples
     "fjsp" => FJSP.Training.experiment,
     "fjspt" => FJSPT.Training.experiment,
     "fjspt2" => FJSPT2.Training.experiment,
+    "fjspt3" => FJSPT3.Training.experiment,
     "dfjspt" => DFJSPT.Training.experiment)
     # "ospiel_ttt" => OSpielTictactoe.Training.experiment
 
