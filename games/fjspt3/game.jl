@@ -345,7 +345,7 @@ function GI.vectorize_state(::GameSpec, s::GameEnv)
     o_mk_tar = [m; k .+ M] .+ num_operations
     time_to_m = s.transport_time[prev_m_k, prev_m]
     o_mk_data = [s.process_time[o, m]; length(time_to_m) <= 1 ? time_to_m : mean(time_to_m, dims=2)]
-    @assert length(o_mk_src) == length(o_mk_data)
+    #@assert length(o_mk_src) == length(o_mk_data)
     append!(src, [o_mk_src; o_mk_tar]) #bidirectional
     append!(tar, [o_mk_tar; o_mk_src])
     append!(edge_data, repeat(o_mk_data, 2))
@@ -353,7 +353,7 @@ function GI.vectorize_state(::GameSpec, s::GameEnv)
   m_k_src = repeat(num_operations:num_operations+M-1, s.K)
   m_k_tar = vcat([fill(num_operations + M + k, M) for k in 1:s.K]...)
   m_k_data = vcat([s.transport_time[s.assigned[s.last_o_k[k], 2], 1:M] for k in 1:s.K]...)
-  @assert length(m_k_src) == length(m_k_data) == length(m_k_tar)
+  #@assert length(m_k_src) == length(m_k_data) == length(m_k_tar)
   append!(src, [m_k_src; m_k_tar]) #bidirectional
   append!(tar, [m_k_tar; m_k_src])
   append!(edge_data, repeat(m_k_data, 2))
