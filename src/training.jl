@@ -1,6 +1,7 @@
 #####
 ##### High level training procedure
 #####
+using CUDA
 
 """
     Env
