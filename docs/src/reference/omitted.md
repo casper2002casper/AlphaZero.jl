@@ -25,6 +25,7 @@ Batchifier.BatchedOracle
 FluxLib
 FluxLib.FluxNetwork
 FluxLib.TwoHeadNetwork
+FluxLib.GATGraphNeuralNetwork
 ```
 
 ## Utilities
