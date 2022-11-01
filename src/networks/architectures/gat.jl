@@ -8,9 +8,9 @@ Hyperparameters for the gin architecture.
 """
 @kwdef struct GatHP
   depth_common::Int = 3
-  depth_phead::Int = 8
-  depth_vhead::Int = 8
-  hidden_size::Int = 64
+  depth_phead::Int = 7
+  depth_vhead::Int = 7
+  hidden_size::Int = 48
 end
 
 """
