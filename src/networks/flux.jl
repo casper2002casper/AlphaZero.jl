@@ -175,24 +175,21 @@ end
 function Network.forward(nn::GATGraphNeuralNetwork, g)
   c = nn.common(g, g.ndata.x)
   is_machine = g.ndata.x[2, :] .== 1.0
-  machine_nodes = findall(is_machine) |> cpu
+  machine_nodes = findall(is_machine)
   is_vehicle = g.ndata.x[3, :] .== 1.0
-  vehicle_nodes = findall(is_vehicle) |> cpu
+  vehicle_nodes = findall(is_vehicle)
   is_next_op = g.ndata.x[4, :] .== 1.0
-  next_op_nodes = findall(is_next_op ) |> cpu
+  next_op_nodes = findall(is_next_op) |> cpu
 
-  A = @CUDA.allowscalar adjacency_list(g, next_op_nodes)
+  A = adjacency_matrix(g)
+  machine_connections = A[is_next_op, is_machine] .== 1
+  num_machines_per_o = sum(machine_connections, dims=2) |> cpu
+  vehicle_connections = A[is_next_op, is_vehicle] .== 1
+  num_vehicles_per_o = sum(vehicle_connections, dims=2) |> cpu
 
-  operation_index = Vector{Int64}()
-  machine_index = Vector{Int64}()
-  vehicle_index = Vector{Int64}()
-  for i in eachindex(next_op_nodes)
-    machines = intersect(A[i], machine_nodes)
-    vehicles = intersect(A[i], vehicle_nodes)
-    append!(operation_index, fill(next_op_nodes[i], length(machines) * length(vehicles)))
-    append!(machine_index, repeat(machines, inner = length(vehicles)))
-    append!(vehicle_index, repeat(vehicles, outer = length(machines)))
-  end
+  operation_index = vcat([fill(next_op_nodes[i], num_machines_per_o[i] * num_vehicles_per_o[i]) for i in eachindex(next_op_nodes)]...)
+  machine_index = vcat([repeat(machine_nodes[machine_connections[i, :]], inner=num_vehicles_per_o[i]) for i in eachindex(next_op_nodes)]...)
+  vehicle_index = vcat([repeat(vehicle_nodes[vehicle_connections[i, :]], outer=num_machines_per_o[i]) for i in eachindex(next_op_nodes)]...)
   graph_index = g.graph_indicator[operation_index]
 
   g_data = vcat(
