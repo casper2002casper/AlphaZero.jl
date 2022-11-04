@@ -175,23 +175,31 @@ end
 function Network.forward(nn::GATGraphNeuralNetwork, g)
   c = nn.common(g, g.ndata.x)
   is_machine = g.ndata.x[2, :] .== 1.0
-  machine_nodes = findall(is_machine)
   is_vehicle = g.ndata.x[3, :] .== 1.0
-  vehicle_nodes = findall(is_vehicle)
   is_next_op = g.ndata.x[4, :] .== 1.0
-  next_op_nodes = findall(is_next_op) |> cpu
+  next_op_nodes = findall(is_next_op)
 
-  A = adjacency_matrix(g)
-  machine_connections = A[is_next_op, is_machine] .== 1
-  num_machines_per_o = sum(machine_connections, dims=2) |> cpu
-  vehicle_connections = A[is_next_op, is_vehicle] .== 1
-  num_vehicles_per_o = sum(vehicle_connections, dims=2) |> cpu
-
-  operation_index = vcat([fill(next_op_nodes[i], num_machines_per_o[i] * num_vehicles_per_o[i]) for i in eachindex(next_op_nodes)]...)
-  machine_index = vcat([repeat(machine_nodes[machine_connections[i, :]], inner=num_vehicles_per_o[i]) for i in eachindex(next_op_nodes)]...)
-  vehicle_index = vcat([repeat(vehicle_nodes[vehicle_connections[i, :]], outer=num_machines_per_o[i]) for i in eachindex(next_op_nodes)]...)
+  A = adjacency_matrix(g, nodes = is_next_op)
+  
+  num_options = (A * is_vehicle)' * A * is_machine
+  index = CuArray{Int}(undef, num_options)
+  machine_index = CuArray{Int}(undef, num_options)
+  vehicle_index = CuArray{Int}(undef, num_options)
+  i = 1
+  for o in eachindex(next_op_nodes)
+    num_vehicles = A[o,:]' * is_vehicle
+    num_machines = A[o,:]' * is_machine
+    connections = Bool.(A[o, :])
+    num_comb = num_vehicles * num_machines
+    next_i = i + num_comb - 1
+    index[i:next_i] = fill(o, num_comb)
+    machine_index[i:next_i] = repeat(findall(connections .& is_machine), inner=num_vehicles)
+    vehicle_index[i:next_i] = repeat(findall(connections .& is_vehicle), outer=num_machines)
+    i = next_i + 1
+  end
+  operation_index = next_op_nodes[index]
   graph_index = g.graph_indicator[operation_index]
-
+  
   g_data = vcat(
     scatter(mean, c[:, is_next_op], g.graph_indicator[is_next_op]),
     scatter(mean, c[:, is_machine], g.graph_indicator[is_machine]),
