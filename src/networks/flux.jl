@@ -180,23 +180,10 @@ function Network.forward(nn::GATGraphNeuralNetwork, g)
   next_op_nodes = findall(is_next_op)
 
   A = adjacency_matrix(g, nodes = is_next_op)
-  
-  num_options = (A * is_vehicle)' * A * is_machine
-  index = CuArray{Int}(undef, num_options)
-  machine_index = CuArray{Int}(undef, num_options)
-  vehicle_index = CuArray{Int}(undef, num_options)
-  i = 1
-  for o in eachindex(next_op_nodes)
-    num_vehicles = A[o,:]' * is_vehicle
-    num_machines = A[o,:]' * is_machine
-    connections = Bool.(A[o, :])
-    num_comb = num_vehicles * num_machines
-    next_i = i + num_comb - 1
-    index[i:next_i] = fill(o, num_comb)
-    machine_index[i:next_i] = repeat(findall(connections .& is_machine), inner=num_vehicles)
-    vehicle_index[i:next_i] = repeat(findall(connections .& is_vehicle), outer=num_machines)
-    i = next_i + 1
-  end
+
+  index = vcat([fill(o, (A[o,:]' * is_vehicle) * (A[o,:]' * is_machine)) for o in eachindex(next_op_nodes)]...)
+  machine_index = vcat([repeat(findall(Bool.(A[o, :]) .& is_machine), inner=A[o,:]' * is_vehicle) for o in eachindex(next_op_nodes)]...)
+  vehicle_index = vcat([repeat(findall(Bool.(A[o, :]) .& is_vehicle), outer=A[o,:]' * is_machine) for o in eachindex(next_op_nodes)]...)
   operation_index = next_op_nodes[index]
   graph_index = g.graph_indicator[operation_index]
   
