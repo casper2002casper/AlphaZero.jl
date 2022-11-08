@@ -179,11 +179,14 @@ function Network.forward(nn::GATGraphNeuralNetwork, g)
   is_next_op = g.ndata.x[4, :] .== 1.0
   next_op_nodes = findall(is_next_op)
 
-  A = adjacency_matrix(g, nodes = is_next_op)
+  A = adjacency_matrix(g, Bool, nodes = is_next_op)
 
-  index = vcat([fill(o, (A[o,:]' * is_vehicle) * (A[o,:]' * is_machine)) for o in eachindex(next_op_nodes)]...)
-  machine_index = vcat([repeat(findall(Bool.(A[o, :]) .& is_machine), inner=A[o,:]' * is_vehicle) for o in eachindex(next_op_nodes)]...)
-  vehicle_index = vcat([repeat(findall(Bool.(A[o, :]) .& is_vehicle), outer=A[o,:]' * is_machine) for o in eachindex(next_op_nodes)]...)
+  M = A .& is_machine'
+  V = A .& is_vehicle'
+
+  index = vcat([fill(o, sum(M[o,:]) * sum(V[o,:])) for o in eachindex(next_op_nodes)]...)
+  machine_index = vcat([repeat(findall(M[o,:]), inner=sum(V[o,:])) for o in eachindex(next_op_nodes)]...)
+  vehicle_index = vcat([repeat(findall(V[o,:]), outer=sum(M[o,:])) for o in eachindex(next_op_nodes)]...)
   operation_index = next_op_nodes[index]
   graph_index = g.graph_indicator[operation_index]
   
