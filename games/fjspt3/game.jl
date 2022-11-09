@@ -267,7 +267,8 @@ end
 
 function GI.white_reward(g::GameEnv)
   if (GI.game_terminated(g))
-    return ((g.UB - g.done_time[g.job_ids[end]+1, 2]) / (g.UB - g.LB))
+    #return ((g.UB - g.done_time[g.job_ids[end]+1, 2]) / (g.UB - g.LB))
+    return -Float32(g.done_time[g.job_ids[end]+1, 2])
   end
   return 0
 end

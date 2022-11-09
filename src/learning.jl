@@ -66,7 +66,7 @@ end
 
 # Surprisingly, Flux does not like the following code (scalar operations):
 # mse_wmean(ŷ, y, w) = sum((ŷ .- y).^2 .* w) / sum(w)
-mse_wmean(ŷ, y, w) = sum((ŷ .- y) .* (ŷ .- y) .* w) / sum(w)
+mse_wmean(ŷ, y, w) = sum(((ŷ .- y)./y).^2 .* w) / sum(w)
 
 klloss_wmean(π̂, π, w) = -sum(π .* log.(π̂ .+ eps(eltype(π))) .* w) / sum(w)
 
@@ -82,7 +82,7 @@ function losses(nn, regws, params, Wmean, Hp, (W, X, P, V))
   P̂, V̂ = Network.forward(nn, X)
   P̂ = MLUtils.batch(P̂, 0, n=size(P,1))
   Lp = klloss_wmean(P̂, P, W) - Hp
-  Lv = mse_wmean(V̂, V, W)/renorm^2
+  Lv = mse_wmean(V̂, V, W)
   Lreg = iszero(creg) ?
     zero(Lv) :
     creg * sum(sum(w .* w) for w in regws)

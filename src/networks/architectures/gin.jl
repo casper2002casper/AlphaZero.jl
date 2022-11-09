@@ -51,7 +51,7 @@ function Gin(gspec::AbstractGameSpec, hyper::GinHP)
                     GIN_layers(hyper.hidden_size, hyper.depth_common)...)
   vhead = GNNChain(GlobalPool(mean),  
                    Dense_layers(hyper.hidden_size, hyper.hidden_size, hyper.hidden_size, hyper.depth_vhead)...,
-                   Dense(hyper.hidden_size, 1, σ))
+                   Dense(hyper.hidden_size, 1))
   phead = GNNChain(GlobalConcatenation(mean), 
                    Dense(hyper.hidden_size*2, hyper.hidden_size, relu),
                    GIN_layers(hyper.hidden_size, hyper.depth_phead)...,
