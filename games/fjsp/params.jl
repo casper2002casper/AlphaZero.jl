@@ -14,7 +14,6 @@ self_play = SelfPlayParams(
   mcts=MctsParams(
     num_iters_per_turn=300,
     cpuct=0.8,
-    adaptive_cpuct = false,
     temperature=ConstSchedule(0.05),
     dirichlet_noise_ϵ=0.,
     dirichlet_noise_α=0.2))

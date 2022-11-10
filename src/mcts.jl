@@ -130,8 +130,6 @@ mutable struct Env{State, Oracle}
   # Parameters
   gamma :: Float64 # Discount factor
   cpuct :: Float64
-  adaptive_cpuct :: Bool
-  scaled_cpuct :: Float64
   noise_ϵ :: Float64
   noise_α :: Float64
   prior_temperature :: Float64
@@ -143,13 +141,13 @@ mutable struct Env{State, Oracle}
   gspec :: GI.AbstractGameSpec
 
   function Env(gspec, oracle;
-      gamma=1., cpuct=1., noise_ϵ=0., noise_α=1., prior_temperature=1., max_depth=typemax(Int64), adaptive_cpuct=false)
+      gamma=1., cpuct=1., noise_ϵ=0., noise_α=1., prior_temperature=1., max_depth=typemax(Int64))
     S = GI.state_type(gspec)
     tree = Dict{S, StateInfo}()
     total_simulations = 0
     total_nodes_traversed = 0
     new{S, typeof(oracle)}(
-      tree, oracle, gamma, cpuct, adaptive_cpuct, cpuct, noise_ϵ, noise_α, prior_temperature, max_depth,
+      tree, oracle, gamma, cpuct, noise_ϵ, noise_α, prior_temperature, max_depth,
       total_simulations, total_nodes_traversed, gspec)
   end
 end
@@ -188,7 +186,7 @@ function uct_scores(info::StateInfo, cpuct, ϵ, η)
   return map(enumerate(info.stats)) do (i, a)
     Q = a.W / max(a.N, 1)
     P = iszero(ϵ) ? a.P : (1-ϵ) * a.P + ϵ * η[i]
-    Q + cpuct * P * sqrtNtot / (a.N + 1)
+    Q + cpuct * abs(info.Vest) * P * sqrtNtot / (a.N + 1)
   end
 end
 
@@ -212,7 +210,7 @@ function run_simulation!(env::Env, game; η, depth=1)
       return info.Vest
     else
       ϵ = depth==1 ? env.noise_ϵ : 0.
-      scores = uct_scores(info, env.scaled_cpuct, ϵ, η)
+      scores = uct_scores(info, env.cpuct, ϵ, η)
       action_id = argmax(scores)
       action = actions[action_id]
       wp = GI.white_playing(game)
@@ -245,10 +243,6 @@ function explore!(env::Env, game, nsims)
   η = dirichlet_noise(game, env.noise_α)
   length(η) == 1 && (nsims = 2)
   state = GI.current_state(game)
-  if env.adaptive_cpuct
-    (_, V) = env.oracle(state)
-    env.scaled_cpuct = env.cpuct * abs(V)
-  end
   for _ in 1:nsims
     env.total_simulations += 1
     run_simulation!(env, game, η=η)

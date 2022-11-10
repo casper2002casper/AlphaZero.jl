@@ -40,7 +40,7 @@ function Gat(gspec::AbstractGameSpec, hyper::GatHP)
   vhead = Chain(
     Dense_layers(hyper.hidden_size*3, hyper.hidden_size*2, hyper.hidden_size, hyper.depth_vhead)...,
     BatchNorm(hyper.hidden_size, relu),
-    Dense(hyper.hidden_size, 1, σ))
+    Dense(hyper.hidden_size, 1))
   phead = Chain(
     Dense(hyper.hidden_size*6 => hyper.hidden_size*5, relu),
     Dense(hyper.hidden_size*5 => hyper.hidden_size*4, relu),
