@@ -30,16 +30,16 @@ function Gat(gspec::AbstractGameSpec, hyper::GatHP)
   Dense_layers(in, hidden, out, depth) = [Dense((i == 1) ? in : hidden, (i == depth) ? out : hidden, (i == depth) ? identity : relu) for i in 1:depth]
   GAT_layers(n_size, e_size, depth) = [GNNChain(
     GATv2Conv((n_size, e_size) => n_size, relu, add_self_loops=false),
-    Dense(n_size => n_size),
-    BatchNorm(n_size, relu)) for _ in 1:depth]
+    Dense(n_size => n_size)) for _ in 1:depth]
+    #BatchNorm(n_size, relu)) for _ in 1:depth]
   n_size, e_size = GI.state_dim(gspec)
   common = GNNChain(
     Dense_layers(n_size, hyper.hidden_size, hyper.hidden_size, 3)...,
-    BatchNorm(hyper.hidden_size, relu),
+    #BatchNorm(hyper.hidden_size, relu),
     GAT_layers(hyper.hidden_size, e_size, hyper.depth_common)...)
   vhead = Chain(
     Dense_layers(hyper.hidden_size*3, hyper.hidden_size*2, hyper.hidden_size, hyper.depth_vhead)...,
-    BatchNorm(hyper.hidden_size, relu),
+    #BatchNorm(hyper.hidden_size, relu),
     Dense(hyper.hidden_size, 1))
   phead = Chain(
     Dense(hyper.hidden_size*6 => hyper.hidden_size*5, relu),
