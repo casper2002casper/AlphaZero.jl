@@ -97,7 +97,7 @@ function Network.train!(callback, nn::FluxNetwork, opt::Adam, loss, data, n)
     end
     Flux.update!(optimiser, params, grads)
     CUDA.memory_status()
-    GC.gc(true)
+    #GC.gc(true)
     callback(i, l)
   end
 end

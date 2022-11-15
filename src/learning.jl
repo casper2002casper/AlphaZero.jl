@@ -179,7 +179,7 @@ function learning_status(tr::Trainer)
   for batch in batches
     push!(reports, learning_status(tr, batch))
     push!(ws, sum(batch.W))
-    GC.gc(true)
+    #GC.gc(true)
   end
   return mean_learning_status(reports, ws)
 end
