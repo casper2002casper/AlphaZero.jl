@@ -182,9 +182,10 @@ end
 
 function uct_scores(info::StateInfo, cpuct, ϵ, η, Q_parent)
   @assert iszero(ϵ) || length(η) == length(info.stats)
-  sqrtNtot = sqrt(Ntot(info)+1)
+  sqrtNtot = sqrt(max(Ntot(info), 1))
+  Q_fpu = Q_parent + 0.44 * info.Vest
   return map(enumerate(info.stats)) do (i, a)
-    Q = (a.N != 0) ? a.W / a.N : Q_parent + 0.44 * info.Vest
+    Q = (a.N != 0) ? a.W / a.N : Q_fpu
     P = iszero(ϵ) ? a.P : (1-ϵ) * a.P + ϵ * η[i]
     Q + cpuct * abs(info.Vest) * P * sqrtNtot / (a.N + 1), Q
   end
