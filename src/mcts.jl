@@ -180,13 +180,13 @@ end
 ##### Main algorithm
 #####
 
-function uct_scores(info::StateInfo, cpuct, ϵ, η)
+function uct_scores(info::StateInfo, cpuct, ϵ, η, Q_parent)
   @assert iszero(ϵ) || length(η) == length(info.stats)
-  sqrtNtot = sqrt(Ntot(info))
+  sqrtNtot = sqrt(Ntot(info)+1)
   return map(enumerate(info.stats)) do (i, a)
-    Q = a.W / max(a.N, 1)
+    Q = (a.N != 0) ? a.W / a.N : Q_parent + 0.44 * info.Vest
     P = iszero(ϵ) ? a.P : (1-ϵ) * a.P + ϵ * η[i]
-    Q + cpuct * abs(info.Vest) * P * sqrtNtot / (a.N + 1)
+    Q + cpuct * abs(info.Vest) * P * sqrtNtot / (a.N + 1), Q
   end
 end
 
@@ -199,18 +199,19 @@ end
 # Run a single MCTS simulation, updating the statistics of all traversed states.
 # Return the estimated Q-value for the current player.
 # Modifies the state of the game environment.
-function run_simulation!(env::Env, game; η, depth=1)
+function run_simulation!(env::Env, game; η, depth=1, Q_parent=nothing)
   if GI.game_terminated(game)
     return 0.
   else
     state = GI.current_state(game)
     actions = GI.available_actions(game)
     info, new_node = state_info(env, state)
+    isnothing(Q_parent) && (Q_parent = info.Vest)
     if new_node || depth == env.max_depth
       return info.Vest
     else
       ϵ = depth==1 ? env.noise_ϵ : 0.
-      scores = uct_scores(info, env.cpuct, ϵ, η)
+      scores = uct_scores(info, env.cpuct, ϵ, η, Q_parent)
       action_id = argmax(scores)
       action = actions[action_id]
       wp = GI.white_playing(game)
@@ -218,7 +219,7 @@ function run_simulation!(env::Env, game; η, depth=1)
       wr = GI.white_reward(game)
       r = wp ? wr : -wr
       pswitch = wp != GI.white_playing(game)
-      qnext = run_simulation!(env, game, η=η, depth=depth+1)
+      qnext = run_simulation!(env, game, η=η, depth=depth+1, Q_parent=scores[action_id][2])
       qnext = pswitch ? -qnext : qnext
       q = r + env.gamma * qnext
       update_state_info!(env, state, action_id, q)
