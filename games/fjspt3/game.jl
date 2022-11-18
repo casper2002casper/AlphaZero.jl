@@ -26,8 +26,8 @@ mutable struct GameEnv <: GI.AbstractGameEnv
   N::UInt8
   K::UInt8
   job_ids::Vector{UInt8} # i -> operations
-  UB::UInt16
-  LB::UInt16
+  #UB::UInt16
+  #LB::UInt16
   #Solution
   assigned::Matrix{UInt16} #o -> m,k
   previous::Matrix{UInt16} #o -> o_m, o_k
@@ -52,8 +52,8 @@ Base.copy(s::GameEnv) = GameEnv(
   s.N,
   s.K,
   s.job_ids,
-  s.UB,
-  s.LB,
+  #s.UB,
+  #s.LB,
   #Mutable values
   copy(s.assigned),
   copy(s.previous),
@@ -98,8 +98,8 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
     N,
     K,
     job_ids,
-    sum(maximum(replace(p_time, 0xff => 0x00), dims=2)) + maximum(t_time) * (2 * total_opps), #All worst operations in a row,,
-    sum(sum.(minimum.([p_time[job_ids[i]:job_ids[i+1]-1, :] for i in 1:length(job_ids)-1], dims=2))),
+    #sum(maximum(replace(p_time, 0xff => 0x00), dims=2)) + maximum(t_time) * (2 * total_opps), #All worst operations in a row,,
+    #sum(sum.(minimum.([p_time[job_ids[i]:job_ids[i+1]-1, :] for i in 1:length(job_ids)-1], dims=2))),
     #Solution
     assigned,
     previous,
@@ -161,8 +161,8 @@ function GI.init(spec::GameSpec, instance_string::String) #fix
     N,
     instance.num_vehicles,
     instance.num_operations,
-    sum(maximum(replace(p_time, 0xff => 0x00), dims=2)) + maximum(t_time) * (2 * N_OPP + N), #All worst operations in a row,
-    node_done[T],
+    #sum(maximum(replace(p_time, 0xff => 0x00), dims=2)) + maximum(t_time) * (2 * N_OPP + N), #All worst operations in a row,
+    #node_done[T],
     #State
     zeros(UInt16, NUM_OPP * 2 + N, 2),
     zeros(UInt16, NUM_OPP * 2 + N, 2),
@@ -437,8 +437,8 @@ function GI.render(g::GameEnv)
     print(Crayon(foreground=n), "n", n, " ")
   end
   print(crayon"white", "makespan: ", g.done_time[g.job_ids[end]+1, 2] * 1)
-  print(crayon"white", " lowerbound: ", g.LB * 1)
-  print(crayon"white", " upperbound: ", g.UB * 1)
+  #print(crayon"white", " lowerbound: ", g.LB * 1)
+  #print(crayon"white", " upperbound: ", g.UB * 1)
   print(crayon"white", " reward: ", GI.white_reward(g))
   println(crayon"reset")
   # @show g.assigned * 1
