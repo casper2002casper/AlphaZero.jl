@@ -74,11 +74,9 @@ entropy_wmean(π, w) = -sum(π .* log.(π .+ eps(eltype(π))) .* w) / sum(w)
 
 wmean(x, w) = sum(x .* w) / sum(w)
 
-function losses(nn, regws, params, Wmean, Hp, (W, X, P, V))
+function losses(nn, regws, params, Wmean, Hp, (W, X, P, V); HP = false)
   # `regws` must be equal to `Network.regularized_params(nn)`
   creg = params.l2_regularization
-  cinv = params.nonvalidity_penalty
-  renorm = params.rewards_renormalization
   P̂, V̂ = Network.forward(nn, X)
   P̂ = MLUtils.batch(P̂, 0, n=size(P,1))
   Lp = klloss_wmean(P̂, P, W) - Hp
@@ -86,11 +84,12 @@ function losses(nn, regws, params, Wmean, Hp, (W, X, P, V))
   Lreg = iszero(creg) ?
     zero(Lv) :
     creg * sum(sum(w .* w) for w in regws)
-  # Linv = iszero(cinv) ?
-  #   zero(Lv) :
-  #   cinv * wmean(p_invalid, W)
   L = (mean(W) / Wmean) * (Lp + Lv + Lreg)
-  return (L, Lp, Lv, Lreg, 0)
+  Hpnet = 0
+  if(HP)
+    Hpnet = entropy_wmean(P̂, W)
+  end
+  return (L, Lp, Lv, Lreg, 0, Hpnet)
 end
 
 #####
@@ -157,18 +156,12 @@ function mean_learning_status(reports, ws)
 end
 
 function learning_status(tr::Trainer, samples)
-  # As done now, this is slighly inefficient as we solve the
-  # same neural network inference problem twice
   samples = Network.convert_input_tuple(tr.network, samples)
   W, X, P, V = samples
   regws = Network.regularized_params(tr.network)
-  Ls = losses(tr.network, regws, tr.params, tr.Wmean, tr.Hp, samples)
+  Ls = losses(tr.network, regws, tr.params, tr.Wmean, tr.Hp, samples, HP = true)
   Ls = Network.convert_output_tuple(tr.network, Ls)
-  Pnet, _ = Network.forward(tr.network, X)
-  Pnet = batch(Pnet, 0)
-  Hpnet = entropy_wmean(Pnet, W)
-  Hpnet = Network.convert_output(tr.network, Hpnet)
-  return Report.LearningStatus(Report.Loss(Ls...), tr.Hp, Hpnet)
+  return Report.LearningStatus(Report.Loss(Ls[1:5]...), tr.Hp, Ls[end])
 end
 
 function learning_status(tr::Trainer)
