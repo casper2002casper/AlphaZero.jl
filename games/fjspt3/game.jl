@@ -39,10 +39,10 @@ mutable struct GameEnv <: GI.AbstractGameEnv
 end
 
 function Base.hash(s::GameEnv, h::UInt)
-  return hash([s.assigned; s.previous], h)
+  return hash([s.assigned; s.done_time], h)
 end
 
-Base.isequal(a::GameEnv, b::GameEnv) = isequal((a.assigned, a.previous), (b.assigned, b.previous))
+Base.isequal(a::GameEnv, b::GameEnv) = isequal((a.assigned, a.done_time), (b.assigned, b.done_time))
 
 Base.copy(s::GameEnv) = GameEnv(
   #Static values
