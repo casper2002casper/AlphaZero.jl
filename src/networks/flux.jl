@@ -21,9 +21,9 @@ array_on_gpu(::CuArray) = true
 array_on_gpu(arr) = error("Usupported array type: ", typeof(arr))
 
 using Flux: relu, softmax, flatten, σ, cpu
-using Flux: Chain, Dense, Conv, BatchNorm, SkipConnection, Parallel
+using Flux: Chain, Dense, Conv, BatchNorm, SkipConnection, Parallel, LayerNorm
 using GraphNeuralNetworks: GCNConv, SAGEConv
-using NNlib: scatter
+using NNlib: scatter, mish
 import Zygote
 
 function unbatch(graph_indicator, x, num_graphs)
@@ -193,7 +193,9 @@ function Network.forward(nn::GATGraphNeuralNetwork, g)
   g_data = vcat(
     scatter(mean, c[:, is_next_op], g.graph_indicator[is_next_op]),
     scatter(mean, c[:, is_machine], g.graph_indicator[is_machine]),
-    scatter(mean, c[:, is_vehicle], g.graph_indicator[is_vehicle]))
+    scatter(mean, c[:, is_vehicle], g.graph_indicator[is_vehicle]),
+    scatter(mean, g.ndata.x, g.graph_indicator))
+
   p_data = vcat(
     c[:, operation_index],
     c[:, machine_index],
