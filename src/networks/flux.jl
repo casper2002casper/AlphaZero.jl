@@ -129,7 +129,7 @@ end
 regularized_params_(l) = []
 regularized_params_(l::GraphNeuralNetworks.GCNConv) = [l.weight]
 regularized_params_(l::GraphNeuralNetworks.SAGEConv) = [l.weight]
-regularized_params_(l::GraphNeuralNetworks.GATv2Conv) = [regularized_params_(l.dense_i)..., regularized_params_(l.dense_j)..., regularized_params_(l.dense_e)...]
+#regularized_params_(l::GraphNeuralNetworks.GATv2Conv) = [regularized_params_(l.dense_i)..., regularized_params_(l.dense_j)..., regularized_params_(l.dense_e)...]
 regularized_params_(l::Flux.Dense) = [l.weight]
 regularized_params_(l::Flux.Conv) = [l.weight]
 
