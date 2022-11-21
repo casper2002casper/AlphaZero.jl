@@ -127,12 +127,11 @@ function Network.train!(
 end
 
 regularized_params_(l) = []
-regularized_params_(l::GraphNeuralNetworks.GCNConv) = [l.weight, l.bias]
-regularized_params_(l::GraphNeuralNetworks.SAGEConv) = [l.weight, l.bias]
-regularized_params_(l::GraphNeuralNetworks.GATv2Conv) = [regularized_params_(l.dense_i)..., regularized_params_(l.dense_j)..., regularized_params_(l.dense_e)..., l.bias, l.a]
-regularized_params_(l::Flux.Dense) = [l.weight, l.bias]
+regularized_params_(l::GraphNeuralNetworks.GCNConv) = [l.weight]
+regularized_params_(l::GraphNeuralNetworks.SAGEConv) = [l.weight]
+regularized_params_(l::GraphNeuralNetworks.GATv2Conv) = [regularized_params_(l.dense_i)..., regularized_params_(l.dense_j)..., regularized_params_(l.dense_e)...]
+regularized_params_(l::Flux.Dense) = [l.weight]
 regularized_params_(l::Flux.Conv) = [l.weight]
-regularized_params_(l::Flux.BatchNorm) = [l.β, l.γ]
 
 function Network.regularized_params(net::FluxNetwork)
   return (w for l in Flux.modules(net) for w in regularized_params_(l))
