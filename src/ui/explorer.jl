@@ -74,14 +74,14 @@ function state_statistics(game, player, turn, memory=nothing)
   if isa(player, MctsPlayer) && haskey(player.mcts.tree, state)
     mcts = player.mcts
     info = mcts.tree[state]
-    ucts = MCTS.uct_scores(info, mcts.cpuct, 0., nothing)
+    ucts = MCTS.uct_scores(info, mcts.cpuct, 0., nothing, info.Vest)
     report.Nmcts = MCTS.Ntot(info)
     for (i, a) in enumerate(actions)
       astats = info.stats[i]
       arep = report.actions[i][2]
       arep.Pmcts = astats.N / max(1, report.Nmcts)
       arep.Qmcts = astats.N > 0 ? astats.W / astats.N : 0.
-      arep.UCT = ucts[i]
+      arep.UCT = ucts[i][1]
     end
   end
   # Collect memory statistics

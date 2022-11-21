@@ -26,11 +26,8 @@ mutable struct GameEnv <: GI.AbstractGameEnv
   N::UInt8
   K::UInt8
   job_ids::Vector{UInt8} # i -> operations
-  #UB::UInt16
-  #LB::UInt16
   #Solution
   assigned::Matrix{UInt16} #o -> m,k
-  previous::Matrix{UInt16} #o -> o_m, o_k
   ready_time::Matrix{UInt16} #o -> setup_done
   done_time::Matrix{UInt16} #o -> o_done
   #Info 
@@ -52,11 +49,8 @@ Base.copy(s::GameEnv) = GameEnv(
   s.N,
   s.K,
   s.job_ids,
-  #s.UB,
-  #s.LB,
   #Mutable values
   copy(s.assigned),
-  copy(s.previous),
   copy(s.ready_time),
   copy(s.done_time),
   copy(s.last_o_m),
@@ -88,8 +82,6 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
   end
   assigned = zeros(UInt16, total_opps + 2, 2)
   assigned[total_opps+1, 2] = M + 1
-  previous = zeros(UInt16, total_opps + 2, 2)
-  previous[total_opps+1, :] .= total_opps + 1
   return GameEnv(
     #Problem instance
     p_time,
@@ -98,11 +90,8 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
     N,
     K,
     job_ids,
-    #sum(maximum(replace(p_time, 0xff => 0x00), dims=2)) + maximum(t_time) * (2 * total_opps), #All worst operations in a row,,
-    #sum(sum.(minimum.([p_time[job_ids[i]:job_ids[i+1]-1, :] for i in 1:length(job_ids)-1], dims=2))),
     #Solution
     assigned,
-    previous,
     zeros(UInt16, total_opps + 2, 2),
     zeros(UInt16, total_opps + 2, 2),
     #Info
@@ -165,7 +154,6 @@ function GI.init(spec::GameSpec, instance_string::String) #fix
     #node_done[T],
     #State
     zeros(UInt16, NUM_OPP * 2 + N, 2),
-    zeros(UInt16, NUM_OPP * 2 + N, 2),
     zeros(UInt16, NUM_OPP * 2 + N),
     zeros(UInt16, NUM_OPP * 2 + N),
     #Info
@@ -186,7 +174,6 @@ GI.state_type(spec::GameSpec) = return GameEnv
 
 function GI.set_state!(g::GameEnv, s)
   g.assigned = copy(s.assigned)
-  g.previous = copy(s.previous)
   g.ready_time = copy(s.ready_time)
   g.done_time = copy(s.done_time)
   g.last_o_m = copy(s.last_o_m)
@@ -254,7 +241,6 @@ function GI.play!(g::GameEnv, action)
   transport_needed && (g.last_o_k[k] = o)
   #update solution
   g.assigned[o, :] = [transport_needed ? k : 0; m]
-  g.previous[o, :] = [transport_needed ? prev_o_k : g.job_ids[end]; prev_o_m]
   #update time
   g.ready_time[o, 1] = max(g.done_time[prev_o_i, 2], (transport_needed ? g.done_time[prev_o_k, 1] + g.transport_time[m_k, m_i] : 0))
   g.done_time[o, 1] = g.ready_time[o, 1] + g.transport_time[m_i, m]
@@ -402,24 +388,10 @@ function print_schedule(g::GameEnv, id, is_machine)
   while (o != g.job_ids[end])
     i = count(<=(o), g.job_ids)
     #ready of next is less than done of current
-    if (g.done_time[o, datarow] > t)
-      @show o * 1
-      prev = findall(==(o), g.previous[:, datarow])
-      @show g.done_time[o, datarow] * 1
-      @show g.ready_time[o, datarow] * 1
-      @show g.assigned[o, datarow]*1
-      @show prev
-      @show g.done_time[prev, datarow] * 1
-      @show g.ready_time[prev, datarow] * 1
-      @show g.assigned[prev, datarow]*1
-      @show g.previous[prev, datarow]*1
-      @show t * 1
-      break
-    end
     append!(line, [repeat("-", t - g.done_time[o, datarow]); crayon"dark_gray"])
     append!(line, [repeat("=", g.done_time[o, datarow] - g.ready_time[o, datarow]); Crayon(foreground=i)])
     t = g.ready_time[o, datarow]
-    o = g.previous[o, datarow]
+    o = maximum([(g.done_time[o, datarow], o) for o in filter(o -> g.assigned[o, datarow] == id && g.done_time[o, datarow] <= t, 1:(g.job_ids[end]-1))], init=(0, g.job_ids[end]))[2]
   end
   append!(line, [repeat("-", t); crayon"dark_gray"])
   print(reverse(line)...)
