@@ -99,7 +99,8 @@ function convert_input end
 function convert_input_tuple(
     nn::AbstractNetwork, input::Union{Tuple, NamedTuple})
   return map(input) do arr
-    arr isa Vector{<:GraphNeuralNetworks.GNNGraphs.GNNGraph} ? MLUtils.batch(convert_input(nn, arr)) : convert_input(nn, arr)
+    #arr isa Vector{<:GraphNeuralNetworks.GNNGraphs.GNNGraph} ? convert_input(nn, MLUtils.batch(arr)) : convert_input(nn, arr)
+    convert_input(nn, arr)
   end
 end
 

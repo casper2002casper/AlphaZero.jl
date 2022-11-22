@@ -1,4 +1,4 @@
-using MLUtils
+using MLUtils, Distributed
 
 #####
 ##### Converting samples
@@ -74,7 +74,7 @@ entropy_wmean(π, w) = -sum(π .* log.(π .+ eps(eltype(π))) .* w) / sum(w)
 
 wmean(x, w) = sum(x .* w) / sum(w)
 
-function losses(nn, regws, params, Wmean, Hp, (W, X, P, V); HP = false)
+function losses(nn, regws, params, Wmean, Hp, (P, V, W, X); HP = false)
   # `regws` must be equal to `Network.regularized_params(nn)`
   creg = params.l2_regularization
   P̂, V̂ = Network.forward(nn, X)
@@ -114,7 +114,7 @@ struct Trainer
     Hp = entropy_wmean(P, W)
     # Create a batches stream
     batchsize = min(params.batch_size, length(W))
-    dataloader = MLUtils.DataLoader(data; batchsize, partial=false, shuffle=true)
+    dataloader = MLUtils.DataLoader(data; batchsize, partial=false, shuffle=true, collate=true, parallel = true)
     return new(network, samples, params, dataloader, Wmean, Hp) 
   end
 end
@@ -157,7 +157,7 @@ end
 
 function learning_status(tr::Trainer, samples)
   samples = Network.convert_input_tuple(tr.network, samples)
-  W, X, P, V = samples
+  #W, X, P, V = samples
   regws = Network.regularized_params(tr.network)
   Ls = losses(tr.network, regws, tr.params, tr.Wmean, tr.Hp, samples, HP = true)
   Ls = Network.convert_output_tuple(tr.network, Ls)
@@ -166,14 +166,20 @@ end
 
 function learning_status(tr::Trainer)
   batchsize = min(tr.params.loss_computation_batch_size, num_samples(tr))
-  batches = MLUtils.DataLoader(tr.dataloader.data; batchsize, partial=true)
+  batches = MLUtils.DataLoader(tr.dataloader.data; batchsize, partial=true, collate=true, parallel=true)
   reports = []
   ws = []
+  GC.gc(true)
+  CUDA.memory_status()
+  pool = default_worker_pool()
   for batch in batches
-    push!(reports, learning_status(tr, batch))
+    l = remotecall(x->learning_status(tr, x), pool, batch)
+    push!(reports, l)
     push!(ws, sum(batch.W))
+    #CUDA.memory_status()
     #GC.gc(true)
   end
+  reports = fetch.(reports)
   return mean_learning_status(reports, ws)
 end
 
