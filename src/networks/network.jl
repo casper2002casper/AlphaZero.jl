@@ -3,7 +3,7 @@ A generic, framework agnostic interface for neural networks.
 """
 module Network
 
-export AbstractNetwork, OptimiserSpec, CyclicNesterov, Adam
+export AbstractNetwork, OptimiserSpec, CyclicNesterov, Adam, ScheduledAdam
 
 using ..AlphaZero
 
@@ -200,7 +200,16 @@ Adam optimiser.
 end
 
 """
-    train!(callback, ::AbstractNetwork, opt::OptimiserSpec, loss, batches, n)
+    ScheduledAdam(;lr)
+
+Scheduled Adam optimiser.
+"""
+@kwdef struct ScheduledAdam <: OptimiserSpec
+  lr :: AbstractSchedule
+end
+
+"""
+    train!(callback, ::AbstractNetwork, opt::OptimiserSpec, loss, batches, n, itc)
 
 Update a given network to fit some data.
   - [`opt`](@ref OptimiserSpec) specifies which optimiser to use.

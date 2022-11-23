@@ -223,7 +223,7 @@ function learning_step!(env::Env, handler)
   for k in 1:lp.num_checkpoints
     # Execute a series of batch updates
     Handlers.updates_started(handler, status)
-    dlosses, dttrain = @timed batch_updates!(trainer, nbatches)
+    dlosses, dttrain = @timed batch_updates!(trainer, nbatches, env.itc)
     @show dttrain
     status, dtloss = @timed learning_status(trainer)
     @show dtloss

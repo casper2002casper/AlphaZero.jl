@@ -86,10 +86,28 @@ function lossgrads(f, args...)
   return val, grad
 end
 
-function Network.train!(callback, nn::FluxNetwork, opt::Adam, loss, data, n)
-  CUDA.memory_status()
-  optimiser = Flux.ADAM(opt.lr)
+function Network.train!(callback, nn::FluxNetwork, opt::Adam, loss, data, n, itc)
+  optimiser = Flux.Optimiser(Flux.ClipValue(opt.lr), Flux.ADAM(opt.lr))
   params = Flux.params(nn)
+  GC.gc(true)
+  CUDA.memory_status()
+  for (i, d) in enumerate(data)
+    d = Network.convert_input_tuple(nn, d)
+    l, grads = lossgrads(params) do
+      loss(d...)
+    end
+    Flux.update!(optimiser, params, grads)
+    CUDA.memory_status()
+    GC.gc(true)
+    callback(i, l)
+  end
+end
+
+function Network.train!(callback, nn::FluxNetwork, opt::ScheduledAdam, loss, data, n, itc)
+  optimiser = Flux.Optimiser(Flux.ClipValue(opt.lr[itc]), Flux.ADAM(opt.lr[itc]))
+  params = Flux.params(nn)
+  GC.gc(true)
+  CUDA.memory_status()
   for (i, d) in enumerate(data)
     d = Network.convert_input_tuple(nn, d)
     l, grads = lossgrads(params) do
@@ -103,7 +121,7 @@ function Network.train!(callback, nn::FluxNetwork, opt::Adam, loss, data, n)
 end
 
 function Network.train!(
-  callback, nn::FluxNetwork, opt::CyclicNesterov, loss, data, n)
+  callback, nn::FluxNetwork, opt::CyclicNesterov, loss, data, n, itc)
   lr = CyclicSchedule(
     opt.lr_base,
     opt.lr_high,

@@ -44,23 +44,23 @@ module AlphaZero
   using .MCTS
   export MCTS
 
+  # Schedules
+  include("schedule.jl")
+  export AbstractSchedule
+  export ConstSchedule, PLSchedule, StepSchedule, CyclicSchedule
+
   # A generic network interface
   include("networks/network.jl")
   using .Network
   export Network
   export AbstractNetwork
   export OptimiserSpec
-  export CyclicNesterov, Adam
+  export CyclicNesterov, Adam, ScheduledAdam
 
   # Utilities to batch oracle calls
   include("batchifier.jl")
   using .Batchifier
   export Batchifier
-
-  # Schedules
-  include("schedule.jl")
-  export AbstractSchedule
-  export ConstSchedule, PLSchedule, StepSchedule, CyclicSchedule
 
   # Training params
   include("params.jl")

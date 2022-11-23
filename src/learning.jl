@@ -129,11 +129,11 @@ function get_trained_network(tr::Trainer)
   return Network.copy(tr.network, on_gpu=false, test_mode=true)
 end
 
-function batch_updates!(tr::Trainer, n)
+function batch_updates!(tr::Trainer, n, itc)
   regws = Network.regularized_params(tr.network)
   L(batch...) = losses(tr.network, regws, tr.params, tr.Wmean, tr.Hp, batch)[1]
   ls = Vector{Float32}()
-  Network.train!(tr.network, tr.params.optimiser, L, tr.dataloader, n) do i, l
+  Network.train!(tr.network, tr.params.optimiser, L, tr.dataloader, n, itc) do i, l
     push!(ls, l)
   end
   Network.gc(tr.network)

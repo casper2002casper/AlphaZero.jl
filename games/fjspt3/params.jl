@@ -24,7 +24,7 @@ learning = LearningParams(
   use_position_averaging=false,
   samples_weighing_policy=CONSTANT_WEIGHT,
   l2_regularization=1e-5,
-  optimiser=Adam(lr=5e-4),
+  optimiser=ScheduledAdam(lr=PLSchedule([1, 6, 10], [1e-3, 1e-4, 5e-5])),
   batch_size=3250,
   loss_computation_batch_size=1500,
   nonvalidity_penalty=0.,
