@@ -114,7 +114,7 @@ struct Trainer
     Hp = entropy_wmean(P, W)
     # Create a batches stream
     batchsize = min(params.batch_size, length(W))
-    dataloader = MLUtils.DataLoader(data; batchsize, partial=false, shuffle=true, collate=true, parallel = true)
+    dataloader = MLUtils.DataLoader(data; batchsize, partial=false, shuffle=true, collate=true)
     return new(network, samples, params, dataloader, Wmean, Hp) 
   end
 end
@@ -166,7 +166,7 @@ end
 
 function learning_status(tr::Trainer)
   batchsize = min(tr.params.loss_computation_batch_size, num_samples(tr))
-  batches = MLUtils.DataLoader(tr.dataloader.data; batchsize, partial=true, collate=true, parallel=true)
+  batches = MLUtils.DataLoader(tr.dataloader.data; batchsize, partial=true, collate=true)
   reports = []
   ws = []
   GC.gc(true)
@@ -180,6 +180,10 @@ function learning_status(tr::Trainer)
     #GC.gc(true)
   end
   reports = fetch.(reports)
+  Distributed.@everywhere CUDA.reclaim()
+  Distributed.@everywhere GC.gc(true)
+  Distributed.@everywhere CUDA.reclaim()
+  Distributed.@everywhere GC.gc(true)
   return mean_learning_status(reports, ws)
 end
 
