@@ -21,8 +21,6 @@ struct TrainingSample{State}
   s :: State
   π :: Vector{Float64}
   z :: Float64
-  t :: Float64
-  n :: Int
 end
 
 sample_state_type(::Type{<:TrainingSample{S}}) where S = S
@@ -80,8 +78,7 @@ function push_trace!(mem::MemoryBuffer, trace, gamma)
     π = trace.policies[i]
     wp = GI.two_players(mem.gspec) ? GI.white_playing(GI.init(mem.gspec, s)) : true
     z = wp ? wr : -wr
-    t = float(n - i + 1)
-    push!(mem.buf, TrainingSample(s, π, z, t, 1))
+    push!(mem.buf, TrainingSample(s, π, z))
   end
   mem.cur_batch_size += n
   return wr
@@ -91,9 +88,7 @@ function merge_samples(samples)
   s = samples[1].s
   π = mean(e.π for e in samples)
   z = mean(e.z for e in samples)
-  n = sum(e.n for e in samples)
-  t = mean(e.t for e in samples)
-  return eltype(samples)(s, π, z, t, n)
+  return eltype(samples)(s, π, z)
 end
 
 # Merge samples that correspond to identical states
@@ -121,7 +116,7 @@ function apply_symmetry(gspec, sample, (symstate, aperm))
   @assert iszero(π[.~symmask])
   π = π[symmask]
   return typeof(sample)(
-    symstate, π, sample.z, sample.t, sample.n)
+    symstate, π, sample.z)
 end
 
 function augment_with_symmetries(gspec, samples)

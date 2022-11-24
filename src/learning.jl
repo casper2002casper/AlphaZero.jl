@@ -20,20 +20,10 @@ function convert_sample(
     gspec::AbstractGameSpec,
     wp::SamplesWeighingPolicy,
     e::TrainingSample)
-
-  if wp == CONSTANT_WEIGHT
-    w = Float32[1]
-  elseif wp == LOG_WEIGHT
-    w = Float32[log2(e.n) + 1]
-  else
-    @assert wp == LINEAR_WEIGHT
-    w = Float32[n]
-  end
   x = GI.vectorize_state(gspec, e.s)
-  #a = GI.actions_mask(GI.init(gspec, e.s))
   p = Float32.(e.π)
   v = [e.z]
-  return (; w, x, p, v)
+  return (; x, p, v)
 end
 
 function convert_samples(
@@ -41,9 +31,7 @@ function convert_samples(
     wp::SamplesWeighingPolicy,
     es::AbstractVector{<:TrainingSample})
   ces = [convert_sample(gspec, wp, e) for e in es]
-  W = MLUtils.batch([e.w for e in ces])
   X = typeof(ces[1].x) <: Matrix ? MLUtils.batch([e.x for e in ces]) : [e.x for e in ces] 
-  #A = [e.a for e in ces] 
   P = MLUtils.batch([e.p for e in ces], 0)
   V = MLUtils.batch([e.v for e in ces])
   function f32(arr)
@@ -53,7 +41,7 @@ function convert_samples(
       return arr
     end
   end
-  return map(f32, (; W, X, P, V))
+  return map(f32, (; X, P, V))
 end
 
 function MLUtils.batch(xs::AbstractVector{<:AbstractVector}, pad; n=maximum(length(x) for x in xs))
@@ -66,28 +54,26 @@ end
 
 # Surprisingly, Flux does not like the following code (scalar operations):
 # mse_wmean(ŷ, y, w) = sum((ŷ .- y).^2 .* w) / sum(w)
-mse_wmean(ŷ, y, w) = sum(((ŷ .- y)./y).^2 .* w) / sum(w)
+mse_wmean(ŷ, y) = sum(((ŷ .- y)./y).^2) / length(y)
 
-klloss_wmean(π̂, π, w) = -sum(π .* log.(π̂ .+ eps(eltype(π))) .* w) / sum(w)
+klloss_wmean(π̂, π) = -sum(π .* log.(π̂ .+ eps(eltype(π)))) / size(π, 2) 
 
-entropy_wmean(π, w) = -sum(π .* log.(π .+ eps(eltype(π))) .* w) / sum(w)
+entropy_wmean(π) = klloss_wmean(π, π)
 
-wmean(x, w) = sum(x .* w) / sum(w)
-
-function losses(nn, regws, params, Wmean, Hp, (P, V, W, X); HP = false)
+function losses(nn, regws, params, Hp, (P, V, X); HPnet = false)
   # `regws` must be equal to `Network.regularized_params(nn)`
   creg = params.l2_regularization
   P̂, V̂ = Network.forward(nn, X)
   P̂ = MLUtils.batch(P̂, 0, n=size(P,1))
-  Lp = klloss_wmean(P̂, P, W) - Hp
-  Lv = mse_wmean(V̂, V, W)
+  Lp = klloss_wmean(P̂, P) - Hp
+  Lv = mse_wmean(V̂, V)
   Lreg = iszero(creg) ?
     zero(Lv) :
     creg * sum(sum(w .* w) for w in regws)
-  L = (mean(W) / Wmean) * (Lp + Lv + Lreg)
-  Hpnet = 0
-  if(HP)
-    Hpnet = entropy_wmean(P̂, W)
+  L = Lp + Lv + Lreg
+  Hpnet = 0.0
+  if(HPnet)
+    Hpnet = entropy_wmean(P̂)
   end
   return (L, Lp, Lv, Lreg, 0, Hpnet)
 end
@@ -100,8 +86,7 @@ struct Trainer
   network :: AbstractNetwork
   samples :: AbstractVector{<:TrainingSample}
   params :: LearningParams
-  dataloader :: Flux.Data.DataLoader # (W, X, A, P, V) tuple obtained after converting `samples`
-  Wmean :: Float32
+  dataloader :: MLUtils.DataLoader # (W, X, A, P, V) tuple obtained after converting `samples`
   Hp :: Float32
   function Trainer(gspec, network, samples, params; test_mode=false)
     if params.use_position_averaging
@@ -109,19 +94,16 @@ struct Trainer
     end
     data = convert_samples(gspec, params.samples_weighing_policy, samples)
     network = Network.copy(network, on_gpu=params.use_gpu, test_mode=test_mode)
-    W, X, P, V = data
-    Wmean = mean(W)
-    Hp = entropy_wmean(P, W)
+    X, P, V = data
+    Hp = entropy_wmean(P)
     # Create a batches stream
-    batchsize = min(params.batch_size, length(W))
+    batchsize = min(params.batch_size, length(V))
     dataloader = MLUtils.DataLoader(data; batchsize, partial=false, shuffle=true, collate=true)
-    return new(network, samples, params, dataloader, Wmean, Hp) 
+    return new(network, samples, params, dataloader, Hp) 
   end
 end
 
-data_weights(tr::Trainer) = tr.dataloader.data.W
-
-num_samples(tr::Trainer) = length(data_weights(tr))
+num_samples(tr::Trainer) = length(tr.dataloader.data)
 
 num_batches_total(tr::Trainer) = length(tr.dataloader)
 
@@ -131,7 +113,7 @@ end
 
 function batch_updates!(tr::Trainer, n, itc)
   regws = Network.regularized_params(tr.network)
-  L(batch...) = losses(tr.network, regws, tr.params, tr.Wmean, tr.Hp, batch)[1]
+  L(batch...) = losses(tr.network, regws, tr.params, tr.Hp, batch)[1]
   ls = Vector{Float32}()
   Network.train!(tr.network, tr.params.optimiser, L, tr.dataloader, n, itc) do i, l
     push!(ls, l)
@@ -144,22 +126,21 @@ end
 ##### Generating debugging reports
 #####
 
-function mean_learning_status(reports, ws)
-  L     = wmean([r.loss.L     for r in reports], ws)
-  Lp    = wmean([r.loss.Lp    for r in reports], ws)
-  Lv    = wmean([r.loss.Lv    for r in reports], ws)
-  Lreg  = wmean([r.loss.Lreg  for r in reports], ws)
-  Linv  = wmean([r.loss.Linv  for r in reports], ws)
-  Hpnet = wmean([r.Hpnet      for r in reports], ws)
-  Hp    = wmean([r.Hp         for r in reports], ws)
+function mean_learning_status(reports)
+  L     = mean(r.loss.L     for r in reports)
+  Lp    = mean(r.loss.Lp    for r in reports)
+  Lv    = mean(r.loss.Lv    for r in reports)
+  Lreg  = mean(r.loss.Lreg  for r in reports)
+  Linv  = mean(r.loss.Linv  for r in reports)
+  Hpnet = mean(r.Hpnet      for r in reports)
+  Hp    = mean(r.Hp         for r in reports)
   return Report.LearningStatus(Report.Loss(L, Lp, Lv, Lreg, Linv), Hp, Hpnet)
 end
 
 function learning_status(tr::Trainer, samples)
   samples = Network.convert_input_tuple(tr.network, samples)
-  #W, X, P, V = samples
   regws = Network.regularized_params(tr.network)
-  Ls = losses(tr.network, regws, tr.params, tr.Wmean, tr.Hp, samples, HP = true)
+  Ls = losses(tr.network, regws, tr.params, tr.Hp, samples, HPnet = true)
   Ls = Network.convert_output_tuple(tr.network, Ls)
   return Report.LearningStatus(Report.Loss(Ls[1:5]...), tr.Hp, Ls[end])
 end
@@ -168,14 +149,12 @@ function learning_status(tr::Trainer)
   batchsize = min(tr.params.loss_computation_batch_size, num_samples(tr))
   batches = MLUtils.DataLoader(tr.dataloader.data; batchsize, partial=true, collate=true)
   reports = []
-  ws = []
   GC.gc(true)
   CUDA.memory_status()
   pool = default_worker_pool()
   for batch in batches
     l = remotecall(x->learning_status(tr, x), pool, batch)
     push!(reports, l)
-    push!(ws, sum(batch.W))
     #CUDA.memory_status()
     #GC.gc(true)
   end
@@ -184,15 +163,15 @@ function learning_status(tr::Trainer)
   Distributed.@everywhere GC.gc(true)
   Distributed.@everywhere CUDA.reclaim()
   Distributed.@everywhere GC.gc(true)
-  return mean_learning_status(reports, ws)
+  return mean_learning_status(reports)
 end
 
 function samples_report(tr::Trainer)
   status = learning_status(tr)
   # Samples in `tr.samples` can be merged by board or not
-  num_samples = sum(e.n for e in tr.samples)
+  num_samples = length(tr.samples)
   num_boards = length(merge_by_state(tr.samples))
-  Wtot = sum(data_weights(tr))
+  Wtot = num_samples
   return Report.Samples(num_samples, num_boards, Wtot, status)
 end
 
@@ -214,11 +193,11 @@ function memory_report(
     sort!(es, by=(e->e.t))
     csize = ceil(Int, length(es) / params.num_game_stages)
     stages = collect(Iterators.partition(es, csize))
-    map(stages) do es
-      ts = [e.t for e in es]
-      stats = samples_report(Tr(es))
-      Report.StageSamples(minimum(ts), maximum(ts), stats)
-    end
+    # map(stages) do es
+    #   ts = [e.t for e in es]
+    #   stats = samples_report(Tr(es))
+    #   Report.StageSamples(minimum(ts), maximum(ts), stats)
+    # end
   end
   return Report.Memory(latest_batch, all_samples, per_game_stage)
 end
