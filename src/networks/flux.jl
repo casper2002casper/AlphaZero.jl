@@ -87,7 +87,7 @@ function lossgrads(f, args...)
 end
 
 function Network.train!(callback, nn::FluxNetwork, opt::Adam, loss, data, n, itc)
-  optimiser = Flux.Optimiser(Flux.ClipValue(opt.lr*10), Flux.ADAM(opt.lr))
+  optimiser = Flux.Optimiser(Flux.ClipValue(opt.lr), Flux.ADAM(opt.lr))
   params = Flux.params(nn)
   GC.gc(true)
   CUDA.memory_status()
@@ -104,7 +104,7 @@ function Network.train!(callback, nn::FluxNetwork, opt::Adam, loss, data, n, itc
 end
 
 function Network.train!(callback, nn::FluxNetwork, opt::ScheduledAdam, loss, data, n, itc)
-  optimiser = Flux.Optimiser(Flux.ClipValue(opt.lr[itc]*10), Flux.ADAM(opt.lr[itc]))
+  optimiser = Flux.Optimiser(Flux.ClipValue(opt.lr[1]), Flux.ADAM(opt.lr[itc]))
   params = Flux.params(nn)
   GC.gc(true)
   CUDA.memory_status()
