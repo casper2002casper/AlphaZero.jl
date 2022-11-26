@@ -37,7 +37,8 @@ function Gat(gspec::AbstractGameSpec, hyper::GatHP)
     LayerNorm(hyper.hidden_size),
     GAT_layers(hyper.hidden_size, e_size, hyper.depth_common)...)
   vhead = Chain(
-    Dense_layers(hyper.hidden_size*3 + n_size, hyper.hidden_size*2, hyper.hidden_size, hyper.depth_vhead, mish)...,
+    SkipConnection(Chain(Dense_layers(hyper.hidden_size*3 + n_size, hyper.hidden_size*2, hyper.hidden_size, hyper.depth_vhead, mish)...), vcat),
+    Dense(hyper.hidden_size*4+n_size, hyper.hidden_size),
     Dense(hyper.hidden_size, 1))
   phead = Chain(
     Dense(hyper.hidden_size*6 + n_size => hyper.hidden_size*5, mish),
