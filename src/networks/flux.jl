@@ -23,7 +23,7 @@ array_on_gpu(arr) = error("Usupported array type: ", typeof(arr))
 using Flux: relu, softmax, flatten, σ, cpu
 using Flux: Chain, Dense, Conv, BatchNorm, SkipConnection, Parallel, LayerNorm
 using GraphNeuralNetworks: GCNConv, SAGEConv
-using NNlib: scatter, mish
+using NNlib: scatter, mish, leakyrelu
 import Zygote
 
 function unbatch(graph_indicator, x, num_graphs)

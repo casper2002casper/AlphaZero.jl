@@ -41,10 +41,10 @@ function Gat(gspec::AbstractGameSpec, hyper::GatHP)
     Dense(hyper.hidden_size*4+n_size, hyper.hidden_size),
     Dense(hyper.hidden_size, 1))
   phead = Chain(
-    Dense(hyper.hidden_size*6 + n_size => hyper.hidden_size*5, mish),
-    Dense(hyper.hidden_size*5 => hyper.hidden_size*4, mish),
-    Dense(hyper.hidden_size*4 => hyper.hidden_size*3, mish),
-    Dense_layers(hyper.hidden_size*3, hyper.hidden_size*2, hyper.hidden_size, max(hyper.depth_phead-3, 1), mish)...,
+    Dense(hyper.hidden_size*6 + n_size => hyper.hidden_size*5, leakyrelu),
+    Dense(hyper.hidden_size*5 => hyper.hidden_size*4, leakyrelu),
+    Dense(hyper.hidden_size*4 => hyper.hidden_size*3, leakyrelu),
+    Dense_layers(hyper.hidden_size*3, hyper.hidden_size*2, hyper.hidden_size, max(hyper.depth_phead-3, 1), leakyrelu)...,
     Dense(hyper.hidden_size, 1, identity))
   return Gat(gspec, hyper, common, vhead, phead)
 end
