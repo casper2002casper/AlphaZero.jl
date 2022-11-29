@@ -292,11 +292,11 @@ function Session(
     
   isnothing(dir) && (dir = default_session_dir(e))
   logger = session_logger(dir, nostdout, autosave)
+  same_json(x, y) = JSON3.write(x) == JSON3.write(y)
   if valid_session_dir(dir)
     Log.section(logger, 1, "Loading environment from: $dir")
     env = load_env(dir)
     # The parameters must be unchanged
-    same_json(x, y) = JSON3.write(x) == JSON3.write(y)
     same_json(env.params, e.params) || @info "Using modified parameters"
     @assert same_json(Network.hyperparams(env.bestnn), e.netparams)
     session = Session(env, dir, logger, autosave, save_intermediate, e.benchmark)
@@ -316,8 +316,10 @@ function Session(
       bench = @set bench.sim.batch_size = bench_batch_size
       push!(benchs, bench)
     end
-    network = e.mknet(e.gspec, e.netparams)
-    env = Env(e.gspec, e.params, network)
+    network = isfile(joinpath(dir, BESTNN_FILE)) ? deserialize(joinpath(dir, BESTNN_FILE)) : e.mknet(e.gspec, e.netparams)
+    experience = isfile(joinpath(dir, MEM_FILE)) ? deserialize(joinpath(dir, MEM_FILE)) : []
+    env = Env(e.gspec, e.params, copy(network), network, experience)
+    @assert same_json(Network.hyperparams(env.bestnn), e.netparams)
     session = Session(env, dir, logger, autosave, save_intermediate, e.benchmark)
     Log.section(session.logger, 1, "Initializing a new AlphaZero environment")
     save(session, session.dir)
