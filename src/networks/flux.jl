@@ -200,10 +200,10 @@ function Network.forward(nn::GATGraphNeuralNetwork, g)
 
   M = A .& is_machine'
   V = A .& is_vehicle'
-  
-  machines = hcat([repeat(c[:, M[o,:]], inner=(1, sum(V[o,:]))) for o in eachindex(next_op_nodes)]...)
-  vehicles = hcat([repeat(c[:, V[o,:]], outer=(1, sum(M[o,:]))) for o in eachindex(next_op_nodes)]...)
+
   index = vcat([fill(o, sum(M[o,:]) * sum(V[o,:])) for o in eachindex(next_op_nodes)]...)
+  machine_index = vcat([repeat(findall(M[o,:]), inner=sum(V[o,:])) for o in eachindex(next_op_nodes)]...)
+  vehicle_index = vcat([repeat(findall(V[o,:]), outer=sum(M[o,:])) for o in eachindex(next_op_nodes)]...)
   operation_index = next_op_nodes[index]
   graph_index = g.graph_indicator[operation_index]
   
@@ -215,8 +215,8 @@ function Network.forward(nn::GATGraphNeuralNetwork, g)
 
   p_data = vcat(
     c[:, operation_index],
-    machines,
-    vehicles,
+    c[:, machine_index],
+    c[:, vehicle_index],
     g_data[:, graph_index])
   
   v = nn.vhead(g_data)
