@@ -31,14 +31,15 @@ mutable struct Env{GameSpec, Network, State}
   curnn  :: Network
   bestnn :: Network
   memory :: MemoryBuffer{GameSpec, State}
+  optimizer_state :: Tuple
   itc    :: Int
   function Env(
       gspec::AbstractGameSpec,
-      params, curnn, bestnn=copy(curnn), experience=[], itc=-1)
+      params, curnn, bestnn=copy(curnn), experience=[], optimizer_state=(;), itc=-1)
     msize = max(params.mem_buffer_size[itc], length(experience))
     memory = MemoryBuffer(gspec, msize, experience)
     return new{typeof(gspec), typeof(curnn), GI.state_type(gspec)}(
-      gspec, params, curnn, bestnn, memory, itc)
+      gspec, params, curnn, bestnn, memory, optimizer_state, itc)
   end
 end
 
@@ -197,6 +198,7 @@ function learning_step!(env::Env, handler)
   checkpoints = Report.Checkpoint[]
   losses = Float32[]
   tloss, teval, ttrain = 0., 0., 0.
+  network = lp.use_gpu ? Network.to_gpu(env.curnn) : Network.to_cpu(env.curnn)
   experience = get_experience(env.memory)
   if env.params.use_symmetries
     experience = augment_with_symmetries(env.gspec, experience)
@@ -205,9 +207,9 @@ function learning_step!(env::Env, handler)
     # Skipping the learning phase
     return dummy_learning_report()
   end
-  trainer, tconvert = @timed Trainer(env.gspec, env.curnn, experience, lp)
+  trainer, tconvert = @timed Trainer(env.gspec, experience, env.optimizer_state, lp)
   @show tconvert
-  init_status = learning_status(trainer)
+  init_status = learning_status(trainer, network)
   status = init_status
   Handlers.learning_started(handler)
   # Compute the number of batches between each checkpoint
@@ -223,22 +225,21 @@ function learning_step!(env::Env, handler)
   for k in 1:lp.num_checkpoints
     # Execute a series of batch updates
     Handlers.updates_started(handler, status)
-    dlosses, dttrain = @timed batch_updates!(trainer, nbatches, env.itc)
+    (network, env.optimizer_state, dlosses), dttrain = @timed batch_updates!(trainer, network, nbatches, env.itc)
     @show dttrain
-    status, dtloss = @timed learning_status(trainer)
+    status, dtloss = @timed learning_status(trainer, network)
     @show dtloss
     Handlers.updates_finished(handler, status)
     tloss += dtloss
     ttrain += dttrain
     append!(losses, dlosses)
     # Run a checkpoint evaluation if the arena parameter is provided
+    env.curnn = Network.to_cpu(network)
     if isnothing(ap)
-      env.curnn = get_trained_network(trainer)
       env.bestnn = copy(env.curnn)
       nn_replaced = true
     else
       Handlers.checkpoint_started(handler)
-      env.curnn = get_trained_network(trainer)
       eval_report =
         compare_networks(env.gspec, env.curnn, env.bestnn, env.itc, ap, handler)
       teval += eval_report.time

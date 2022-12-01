@@ -238,7 +238,8 @@ In the original AlphaGo Zero paper:
   use_gpu :: Bool = false
   use_position_averaging :: Bool = true
   samples_weighing_policy :: SamplesWeighingPolicy
-  optimiser :: OptimiserSpec
+  optimiser 
+  learnrate :: AbstractSchedule
   l2_regularization :: Float32
   rewards_renormalization :: Float32 = 1f0
   nonvalidity_penalty :: Float32 = 1f0

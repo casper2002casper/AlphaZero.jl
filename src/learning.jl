@@ -1,5 +1,4 @@
 using MLUtils, Distributed
-
 #####
 ##### Converting samples
 #####
@@ -30,7 +29,6 @@ function convert_sample(
     w = Float32[n]
   end
   x = GI.vectorize_state(gspec, e.s)
-  #a = GI.actions_mask(GI.init(gspec, e.s))
   p = Float32.(e.π)
   v = [e.z]
   return (; w, x, p, v)
@@ -97,25 +95,24 @@ end
 #####
 
 struct Trainer
-  network :: AbstractNetwork
   samples :: AbstractVector{<:TrainingSample}
+  optimizer_state :: Tuple
   params :: LearningParams
   dataloader :: Flux.Data.DataLoader # (W, X, A, P, V) tuple obtained after converting `samples`
   Wmean :: Float32
   Hp :: Float32
-  function Trainer(gspec, network, samples, params; test_mode=false)
+  function Trainer(gspec, samples, optimizer_state, params; test_mode=false)
     if params.use_position_averaging
       samples = merge_by_state(samples)
     end
     data = convert_samples(gspec, params.samples_weighing_policy, samples)
-    network = Network.copy(network, on_gpu=params.use_gpu, test_mode=test_mode)
     W, X, P, V = data
     Wmean = mean(W)
     Hp = entropy_wmean(P, W)
     # Create a batches stream
     batchsize = min(params.batch_size, length(W))
     dataloader = MLUtils.DataLoader(data; batchsize, partial=false, shuffle=true, collate=true)
-    return new(network, samples, params, dataloader, Wmean, Hp) 
+    return new(samples, optimizer_state, params, dataloader, Wmean, Hp) 
   end
 end
 
@@ -125,19 +122,18 @@ num_samples(tr::Trainer) = length(data_weights(tr))
 
 num_batches_total(tr::Trainer) = length(tr.dataloader)
 
-function get_trained_network(tr::Trainer)
-  return Network.copy(tr.network, on_gpu=false, test_mode=true)
-end
-
-function batch_updates!(tr::Trainer, n, itc)
-  regws = Network.regularized_params(tr.network)
-  L(batch...) = losses(tr.network, regws, tr.params, tr.Wmean, tr.Hp, batch)[1]
+function batch_updates!(tr::Trainer, network, n, itc)
+  Network.set_test_mode!(network, false)
+  #network = Network.to_gpu(network)
+  regws = Network.regularized_params(network)
+  L(nn, batch...) = losses(nn, regws, tr.params, tr.Wmean, tr.Hp, batch)[1]
   ls = Vector{Float32}()
-  Network.train!(tr.network, tr.params.optimiser, L, tr.dataloader, n, itc) do i, l
+  optimizer_state, network = Network.train!(network, tr.optimizer_state, L, tr.dataloader, n, tr.params.learnrate[itc]) do i, l
     push!(ls, l)
   end
-  Network.gc(tr.network)
-  return ls
+  Network.gc(network)
+  Network.set_test_mode!(network, true)
+  return network, optimizer_state, ls
 end
 
 #####
@@ -155,16 +151,18 @@ function mean_learning_status(reports, ws)
   return Report.LearningStatus(Report.Loss(L, Lp, Lv, Lreg, Linv), Hp, Hpnet)
 end
 
-function learning_status(tr::Trainer, samples)
-  samples = Network.convert_input_tuple(tr.network, samples)
+function learning_status(tr::Trainer, network, samples)
+  samples = Network.convert_input_tuple(network, samples)
   #W, X, P, V = samples
-  regws = Network.regularized_params(tr.network)
-  Ls = losses(tr.network, regws, tr.params, tr.Wmean, tr.Hp, samples, HP = true)
-  Ls = Network.convert_output_tuple(tr.network, Ls)
+  regws = Network.regularized_params(network)
+  Ls = losses(network, regws, tr.params, tr.Wmean, tr.Hp, samples, HP = true)
+  Ls = Network.convert_output_tuple(network, Ls)
   return Report.LearningStatus(Report.Loss(Ls[1:5]...), tr.Hp, Ls[end])
 end
 
-function learning_status(tr::Trainer)
+function learning_status(tr::Trainer, network)
+  Network.set_test_mode!(network, true)
+  #network = Network.to_gpu(network)
   batchsize = min(tr.params.loss_computation_batch_size, num_samples(tr))
   batches = MLUtils.DataLoader(tr.dataloader.data; batchsize, partial=true, collate=true)
   reports = []
@@ -174,6 +172,7 @@ function learning_status(tr::Trainer)
   pool = default_worker_pool()
   for batch in batches
     l = remotecall(x->learning_status(tr, x), pool, batch)
+    l = learning_status(tr, network, batch)
     push!(reports, l)
     push!(ws, sum(batch.W))
     #CUDA.memory_status()
@@ -204,7 +203,7 @@ function memory_report(
   )
   # It is important to load the neural network in test mode so as to not
   # overwrite the batch norm statistics based on biased data.
-  Tr(samples) = Trainer(mem.gspec, nn, samples, learning_params, test_mode=true)
+  Tr(samples) = Trainer(mem.gspec, nn, samples, optimzer, learning_params, test_mode=true)
   all_samples = samples_report(Tr(get_experience(mem)))
   latest_batch = isempty(last_batch(mem)) ?
     all_samples :

@@ -47,6 +47,7 @@ learning = LearningParams(
     lr_low=1e-3,
     momentum_high=0.9,
     momentum_low=0.8),
+  learnrate=ConstSchedule(1e-3),
   batch_size=32,
   loss_computation_batch_size=2048,
   nonvalidity_penalty=1.,

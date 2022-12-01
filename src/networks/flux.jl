@@ -10,6 +10,7 @@ using ..AlphaZero
 
 using CUDA
 using Base: @kwdef
+using Optimisers
 #using Statistics: var
 
 import Flux
@@ -86,62 +87,23 @@ function lossgrads(f, args...)
   return val, grad
 end
 
-function Network.train!(callback, nn::FluxNetwork, opt::Adam, loss, data, n, itc)
-  optimiser = Flux.Optimiser(Flux.ClipValue(opt.lr), Flux.ADAM(opt.lr))
-  params = Flux.params(nn)
+function Network.train!(callback, nn::FluxNetwork, optimizer_state::Tuple, loss, data, n, learnrate)
+  #optimizer_state.weight.rule.eta = learnrate
+  Optimisers.adjust!(optimizer_state, learnrate)
+  #params = Flux.params(nn)
   GC.gc(true)
   CUDA.memory_status()
   for (i, d) in enumerate(data)
     d = Network.convert_input_tuple(nn, d)
-    l, grads = lossgrads(params) do
-      loss(d...)
+    l, grads = Zygote.withgradient(nn, d) do m, d
+      loss(m, d...)
     end
-    Flux.update!(optimiser, params, grads)
-    CUDA.memory_status()
-    GC.gc(true)
-    callback(i, l)
-  end
-end
-
-function Network.train!(callback, nn::FluxNetwork, opt::ScheduledAdam, loss, data, n, itc)
-  optimiser = Flux.Optimiser(Flux.ClipValue(opt.lr[1]), Flux.ADAM(opt.lr[itc]))
-  params = Flux.params(nn)
-  GC.gc(true)
-  CUDA.memory_status()
-  for (i, d) in enumerate(data)
-    d = Network.convert_input_tuple(nn, d)
-    l, grads = lossgrads(params) do
-      loss(d...)
-    end
-    Flux.update!(optimiser, params, grads)
+    optimizer_state, nn = Optimisers.update!(optimizer_state, nn, grads);
     CUDA.memory_status()
     #GC.gc(true)
     callback(i, l)
   end
-end
-
-function Network.train!(
-  callback, nn::FluxNetwork, opt::CyclicNesterov, loss, data, n, itc)
-  lr = CyclicSchedule(
-    opt.lr_base,
-    opt.lr_high,
-    opt.lr_low, n=n)
-  momentum = CyclicSchedule(
-    opt.momentum_high,
-    opt.momentum_low,
-    opt.momentum_high, n=n)
-  optimiser = Flux.Nesterov(opt.lr_low, opt.momentum_high)
-  params = Flux.params(nn)
-  for (i, d) in enumerate(data)
-    d = Network.convert_input_tuple(nn, d)
-    l, grads = lossgrads(params) do
-      loss(d...)
-    end
-    Flux.update!(optimiser, params, grads)
-    optimiser.eta = lr[i]
-    optimiser.rho = momentum[i]
-    callback(i, l)
-  end
+  return optimizer_state, nn
 end
 
 regularized_params_(l) = []

@@ -25,6 +25,7 @@ learning = LearningParams(
   samples_weighing_policy=LOG_WEIGHT,
   l2_regularization=1e-5,
   optimiser=Adam(lr=1e-4),
+  learnrate=ConstSchedule(1e-3),
   batch_size=2048,
   loss_computation_batch_size=2048,
   nonvalidity_penalty=0.,

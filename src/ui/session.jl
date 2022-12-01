@@ -1,7 +1,7 @@
 #####
 ##### Session management
 #####
-using Setfield
+using Setfield, Optimisers
 
 const DEFAULT_SESSIONS_DIR = "sessions"
 
@@ -71,6 +71,7 @@ const GSPEC_FILE       =  "gspec.data"
 const BESTNN_FILE      =  "bestnn.data"
 const CURNN_FILE       =  "curnn.data"
 const MEM_FILE         =  "mem.data"
+const OPT_FILE         =  "optstate.data"
 const ITC_FILE         =  "iter.txt"
 const REPORT_FILE      =  "report.json"
 const PARAMS_FILE      =  "params.data"
@@ -88,6 +89,7 @@ function valid_session_dir(dir)
   isfile(joinpath(dir, BESTNN_FILE)) &&
   isfile(joinpath(dir, CURNN_FILE)) &&
   isfile(joinpath(dir, MEM_FILE)) &&
+  isfile(joinpath(dir, OPT_FILE)) &&
   isfile(joinpath(dir, ITC_FILE))
 end
 
@@ -101,9 +103,10 @@ function save_env(env::Env, dir)
   open(joinpath(dir, NET_PARAMS_FILE), "w") do io
     JSON3.pretty(io, JSON3.write(Network.hyperparams(env.bestnn)))
   end
-  serialize(joinpath(dir, BESTNN_FILE), env.bestnn)
-  serialize(joinpath(dir, CURNN_FILE), env.curnn)
+  serialize(joinpath(dir, BESTNN_FILE),  env.bestnn)
+  serialize(joinpath(dir, CURNN_FILE),  env.curnn)
   serialize(joinpath(dir, MEM_FILE), get_experience(env))
+  serialize(joinpath(dir, OPT_FILE), env.optimizer_state)
   open(joinpath(dir, ITC_FILE), "w") do io
     JSON3.write(io, env.itc)
   end
@@ -114,11 +117,12 @@ end
 function load_env(dir)
   gspec = deserialize(joinpath(dir, GSPEC_FILE))
   params = deserialize(joinpath(dir, PARAMS_FILE))
-  curnn = deserialize(joinpath(dir, CURNN_FILE))
-  bestnn = deserialize(joinpath(dir, BESTNN_FILE))
+  curnn =  deserialize(joinpath(dir, CURNN_FILE))
+  bestnn =  deserialize(joinpath(dir, BESTNN_FILE))
+  optimizer_state = deserialize(joinpath(dir, OPT_FILE))
   experience = deserialize(joinpath(dir, MEM_FILE))
   itc = open(JSON3.read, joinpath(dir, ITC_FILE), "r") 
-  return Env(gspec, params, curnn, bestnn, experience, itc)
+  return Env(gspec, params, curnn, bestnn, experience, optimizer_state, itc)
 end
 
 #####
@@ -318,7 +322,8 @@ function Session(
     end
     network = isfile(joinpath(dir, BESTNN_FILE)) ? deserialize(joinpath(dir, BESTNN_FILE)) : e.mknet(e.gspec, e.netparams)
     experience = isfile(joinpath(dir, MEM_FILE)) ? deserialize(joinpath(dir, MEM_FILE)) : []
-    env = Env(e.gspec, e.params, copy(network), network, experience)
+    optimizer_state = isfile(joinpath(dir, OPT_FILE)) ? deserialize(joinpath(dir, OPT_FILE)) : Optimisers.setup(e.params.learning.optimiser, network)
+    env = Env(e.gspec, e.params, copy(network), network, experience, optimizer_state, -1)
     @assert same_json(Network.hyperparams(env.bestnn), e.netparams)
     session = Session(env, dir, logger, autosave, save_intermediate, e.benchmark)
     Log.section(session.logger, 1, "Initializing a new AlphaZero environment")
