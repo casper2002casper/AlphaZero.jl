@@ -87,7 +87,7 @@ function lossgrads(f, args...)
   return val, grad
 end
 
-function Network.train!(callback, nn::FluxNetwork, optimizer_state::Tuple, loss, data, n, learnrate)
+function Network.train!(callback, nn::FluxNetwork, optimizer_state::NamedTuple, loss, data, n, learnrate)
   #optimizer_state.weight.rule.eta = learnrate
   Optimisers.adjust!(optimizer_state, learnrate)
   #params = Flux.params(nn)
@@ -98,7 +98,7 @@ function Network.train!(callback, nn::FluxNetwork, optimizer_state::Tuple, loss,
     l, grads = Zygote.withgradient(nn, d) do m, d
       loss(m, d...)
     end
-    optimizer_state, nn = Optimisers.update!(optimizer_state, nn, grads);
+    optimizer_state, nn = Optimisers.update!(optimizer_state, nn, grads[1])
     CUDA.memory_status()
     #GC.gc(true)
     callback(i, l)
@@ -205,12 +205,20 @@ function Network.forward(nn::TwoHeadNetwork, state)
   return (p, v)
 end
 
+
+
 # Flux.@functor does not work with abstract types
-function Flux.functor(nn::Net) where {Net<:TwoHeadNetwork}
-  children = (nn.common, nn.vhead, nn.phead)
-  constructor = cs -> Net(nn.gspec, nn.hyper, cs...)
-  return (children, constructor)
-end
+# function Flux.functor(::Net, nn::Net) where {Net<:TwoHeadNetwork}
+#   children = (nn.common, nn.vhead, nn.phead)
+#   constructor = cs -> Net(nn.gspec, nn.hyper, cs...)
+#   return (children, constructor)
+# end
+
+# function Flux.functor(nn::Net) where {Net<:TwoHeadNetwork}
+#   children = (nn.common, nn.vhead, nn.phead)
+#   constructor = cs -> Net(nn.gspec, nn.hyper, cs...)
+#   return (children, constructor)
+# end
 
 Network.hyperparams(nn::TwoHeadNetwork) = nn.hyper
 

@@ -31,7 +31,7 @@ mutable struct Env{GameSpec, Network, State}
   curnn  :: Network
   bestnn :: Network
   memory :: MemoryBuffer{GameSpec, State}
-  optimizer_state :: Tuple
+  optimizer_state :: NamedTuple
   itc    :: Int
   function Env(
       gspec::AbstractGameSpec,
@@ -198,7 +198,7 @@ function learning_step!(env::Env, handler)
   checkpoints = Report.Checkpoint[]
   losses = Float32[]
   tloss, teval, ttrain = 0., 0., 0.
-  network = lp.use_gpu ? Network.to_gpu(env.curnn) : Network.to_cpu(env.curnn)
+  network = Network.copy(env.curnn, on_gpu=lp.use_gpu, test_mode=false) 
   experience = get_experience(env.memory)
   if env.params.use_symmetries
     experience = augment_with_symmetries(env.gspec, experience)

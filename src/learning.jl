@@ -96,7 +96,7 @@ end
 
 struct Trainer
   samples :: AbstractVector{<:TrainingSample}
-  optimizer_state :: Tuple
+  optimizer_state :: NamedTuple
   params :: LearningParams
   dataloader :: Flux.Data.DataLoader # (W, X, A, P, V) tuple obtained after converting `samples`
   Wmean :: Float32
@@ -123,8 +123,7 @@ num_samples(tr::Trainer) = length(data_weights(tr))
 num_batches_total(tr::Trainer) = length(tr.dataloader)
 
 function batch_updates!(tr::Trainer, network, n, itc)
-  Network.set_test_mode!(network, false)
-  #network = Network.to_gpu(network)
+  #Network.set_test_mode!(network, false)
   regws = Network.regularized_params(network)
   L(nn, batch...) = losses(nn, regws, tr.params, tr.Wmean, tr.Hp, batch)[1]
   ls = Vector{Float32}()
@@ -161,8 +160,7 @@ function learning_status(tr::Trainer, network, samples)
 end
 
 function learning_status(tr::Trainer, network)
-  Network.set_test_mode!(network, true)
-  #network = Network.to_gpu(network)
+  #Network.set_test_mode!(network, true)
   batchsize = min(tr.params.loss_computation_batch_size, num_samples(tr))
   batches = MLUtils.DataLoader(tr.dataloader.data; batchsize, partial=true, collate=true)
   reports = []

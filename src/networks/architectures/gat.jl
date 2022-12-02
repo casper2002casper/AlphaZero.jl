@@ -1,4 +1,4 @@
-using GraphNeuralNetworks
+using GraphNeuralNetworks, Flux
 
 """
     GatHP
@@ -25,6 +25,8 @@ mutable struct Gat <: GATGraphNeuralNetwork
   vhead
   phead
 end
+
+Flux.@functor Gat (common, vhead, phead)
 
 leakyrelu2(x) = leakyrelu(x, 0.2)
 
