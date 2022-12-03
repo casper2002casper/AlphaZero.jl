@@ -88,9 +88,7 @@ function lossgrads(f, args...)
 end
 
 function Network.train!(callback, nn::FluxNetwork, optimizer_state::NamedTuple, loss, data, n, learnrate)
-  #optimizer_state.weight.rule.eta = learnrate
   Optimisers.adjust!(optimizer_state, learnrate)
-  #params = Flux.params(nn)
   GC.gc(true)
   CUDA.memory_status()
   for (i, d) in enumerate(data)

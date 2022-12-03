@@ -1,4 +1,5 @@
 using MLUtils, Distributed
+using Flux: cpu, gpu
 #####
 ##### Converting samples
 #####
@@ -109,6 +110,7 @@ struct Trainer
     W, X, P, V = data
     Wmean = mean(W)
     Hp = entropy_wmean(P, W)
+    optimizer_state = optimizer_state |> (params.use_gpu ? gpu : cpu)
     # Create a batches stream
     batchsize = min(params.batch_size, length(W))
     dataloader = MLUtils.DataLoader(data; batchsize, partial=false, shuffle=true, collate=true)
@@ -169,8 +171,8 @@ function learning_status(tr::Trainer, network)
   CUDA.memory_status()
   pool = default_worker_pool()
   for batch in batches
-    l = remotecall(x->learning_status(tr, x), pool, batch)
-    l = learning_status(tr, network, batch)
+    l = remotecall(samples->learning_status(tr, network, samples), pool, batch)
+    #l = learning_status(tr, network, batch)
     push!(reports, l)
     push!(ws, sum(batch.W))
     #CUDA.memory_status()
