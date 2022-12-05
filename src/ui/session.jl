@@ -323,7 +323,8 @@ function Session(
     network = isfile(joinpath(dir, BESTNN_FILE)) ? deserialize(joinpath(dir, BESTNN_FILE)) : e.mknet(e.gspec, e.netparams)
     experience = isfile(joinpath(dir, MEM_FILE)) ? deserialize(joinpath(dir, MEM_FILE)) : []
     optimizer_state = isfile(joinpath(dir, OPT_FILE)) ? deserialize(joinpath(dir, OPT_FILE)) : Optimisers.setup(e.params.learning.optimiser, network)
-    env = Env(e.gspec, e.params, copy(network), network, experience, optimizer_state, -1)
+    itc = isfile(joinpath(dir, ITC_FILE)) ? open(JSON3.read, joinpath(dir, ITC_FILE), "r") : -1 
+    env = Env(e.gspec, e.params, copy(network), network, experience, optimizer_state, itc)
     @assert same_json(Network.hyperparams(env.bestnn), e.netparams)
     session = Session(env, dir, logger, autosave, save_intermediate, e.benchmark)
     Log.section(session.logger, 1, "Initializing a new AlphaZero environment")
