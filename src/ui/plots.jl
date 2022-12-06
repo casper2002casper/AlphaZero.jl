@@ -116,7 +116,8 @@ end
 function plot_benchmark(
     params::Params,
     benchs::Vector{Report.Benchmark},
-    dir::String)
+    dir::String,
+    itc::Int)
   isempty(benchs) && return
   n = length(benchs) - 1
   nduels = length(benchs[1])
@@ -126,7 +127,7 @@ function plot_benchmark(
   labels = [b.legend for _ in 1:1, b in benchs[1]]
   # Average reward
   avgr_data = [[b[i].avgr for b in benchs] for i in 1:nduels]
-  avgr = Plots.plot(0:n,
+  avgr = Plots.plot((itc-n):itc,
     avgr_data,
     title="Average Reward",
     ylims=(params.ternary_rewards ? (-1.0, 1.0) : (minimum(minimum.(avgr_data)), maximum(maximum.(avgr_data)))),
@@ -166,37 +167,39 @@ end
 function plot_training(
     params::Params,
     iterations::Vector{Report.Iteration},
-    dir::String)
+    dir::String,
+    itc::Int)
   n = length(iterations)
   iszero(n) && return
   isdir(dir) || mkpath(dir)
   plots, files = [], []
+  iters = (itc-n+1):itc
   # Exploration depth
-  expdepth = Plots.plot(1:n,
+  expdepth = Plots.plot(iters,
     [it.self_play.average_exploration_depth for it in iterations],
     title="Average Exploration Depth",
     ylims=(0, Inf),
     legend=:none,
     xlabel="Iteration number")
   # Selfplay average reward
-  selfreward = Plots.plot(1:n,
+  selfreward = Plots.plot(iters,
     [it.self_play.average_reward for it in iterations],
     title="Average Selfplay Reward",
     #ylims=(0, Inf),
     legend=:none,
     xlabel="Iteration number")
   # Number of samples
-  nsamples = Plots.plot(0:n,
-    [0;[it.self_play.memory_size for it in iterations]],
+  nsamples = Plots.plot(iters,
+    [it.self_play.memory_size for it in iterations],
     title="Experience Buffer Size",
     label="Number of samples",
     xlabel="Iteration number")
-  Plots.plot!(nsamples, 0:n,
-    [0;[it.self_play.memory_num_distinct_boards for it in iterations]],
+  Plots.plot!(nsamples, iters,
+    [it.self_play.memory_num_distinct_boards for it in iterations],
     label="Number of distinct boards")
   # Performances during evaluation
   if all(it -> !isempty(it.learning.checkpoints), iterations)
-    arena = Plots.plot(1:n, [
+    arena = Plots.plot(iters, [
       maximum(c.evaluation.avgr for c in it.learning.checkpoints)
       for it in iterations],
       title="Arena Results",
@@ -211,14 +214,14 @@ function plot_training(
   # Loss on the full memory after an iteration
   lfmt = "Loss on Full Memory"
   losses_fullmem = plot_losses(1:n, lfmt, "Iteration number") do i
-    (i, iterations[i].learning.initial_status.loss)
+    (i+itc-n, iterations[i].learning.initial_status.loss)
   end
   # Plots related to the memory analysis
   if all(it -> !isnothing(it.memory), iterations)
     # Loss on last batch
     losses_last = plot_losses(
       1:n, "Loss on Last Batch", "Iteration number") do i
-      (i, iterations[i].memory.latest_batch.status.loss)
+      (i+itc-n, iterations[i].memory.latest_batch.status.loss)
     end
     # Loss per game stage
     nstages = minimum(length(it.memory.per_game_stage) for it in iterations)
@@ -242,13 +245,13 @@ function plot_training(
     append!(files, ["loss_last_batch", "loss_per_stage"])
   end
   # Policies entropy
-  entropies = Plots.plot(1:n,
+  entropies = Plots.plot(iters,
     [it.learning.initial_status.Hp for it in iterations],
     ylims=(0, Inf),
     title="Policy Entropy",
     label="MCTS",
     xlabel="Iteration number")
-  Plots.plot!(entropies, 1:n,
+  Plots.plot!(entropies, iters,
     [it.learning.initial_status.Hpnet for it in iterations],
     label="Network")
   # Assembling everything together

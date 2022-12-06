@@ -133,6 +133,7 @@ function load_session_report(dir::String, niters)
   rep = SessionReport()
   for itc in 0:niters
     idir = iterdir(dir, itc)
+    isdir(idir) || continue
     ifile = joinpath(idir, REPORT_FILE)
     bfile = joinpath(idir, BENCHMARK_FILE)
     # Load the benchmark report
@@ -140,7 +141,7 @@ function load_session_report(dir::String, niters)
       push!(rep.benchmark, JSON3.read(io, Report.Benchmark))
     end
     # Load the iteration report
-    if itc > 0
+    if isfile(ifile)
       open(ifile, "r") do io
         push!(rep.iterations, JSON3.read(io, Report.Iteration))
       end
@@ -154,8 +155,7 @@ function save_report_increment(session, bench, itrep, idir)
   open(joinpath(idir, BENCHMARK_FILE), "w") do io
     JSON3.pretty(io, JSON3.write(bench))
   end
-  if session.env.itc > 0
-    @assert !isnothing(itrep)
+  if !isnothing(itrep)
     open(joinpath(idir, REPORT_FILE), "w") do io
       JSON3.pretty(io, JSON3.write(itrep))
     end
@@ -185,8 +185,8 @@ function save_increment!(session::Session, bench, itrep=nothing)
     params = session.env.params
     plotsdir = joinpath(session.dir, PLOTS_DIR)
     isnothing(itrep) || plot_iteration(itrep, params, plotsdir, itc)
-    plot_training(params, session.report.iterations, plotsdir)
-    plot_benchmark(params, session.report.benchmark, plotsdir)
+    plot_training(params, session.report.iterations, plotsdir, itc)
+    plot_benchmark(params, session.report.benchmark, plotsdir, itc)
   end
 end
 
@@ -230,7 +230,7 @@ end
 
 # return whether or not critical problems were found
 function zeroth_iteration!(session::Session)
-  session.env.itc = 0
+  session.env.itc += -1 && (session.env.itc = 0)
   Log.section(session.logger, 2, "Initial report")
   report = initial_report(session.env)
   print_report(session.logger, report)
