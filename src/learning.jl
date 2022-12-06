@@ -152,13 +152,12 @@ function mean_learning_status(reports, ws)
   return Report.LearningStatus(Report.Loss(L, Lp, Lv, Lreg, Linv), Hp, Hpnet)
 end
 
-function learning_status(tr::Trainer, network, samples)
+function learning_status(l, network, samples, Hp)
   samples = Network.convert_input_tuple(network, samples)
   #W, X, P, V = samples
-  regws = Network.regularized_params(network)
-  Ls = losses(network, regws, tr.params, tr.Wmean, tr.Hp, samples, HP = true)
+  Ls = l(network, samples, Hp)
   Ls = Network.convert_output_tuple(network, Ls)
-  return Report.LearningStatus(Report.Loss(Ls[1:5]...), tr.Hp, Ls[end])
+  return Report.LearningStatus(Report.Loss(Ls[1:5]...), Hp, Ls[end])
 end
 
 function learning_status(tr::Trainer, network)
@@ -169,9 +168,11 @@ function learning_status(tr::Trainer, network)
   ws = []
   GC.gc(true)
   CUDA.memory_status()
+  regws = Network.regularized_params(network)
+  loss(network, samples, Hp) = losses(network, regws, tr.params, tr.Wmean, Hp, samples, HP = true)
   pool = default_worker_pool()
   for batch in batches
-    l = remotecall(samples->learning_status(tr, network, samples), pool, batch)
+    l = remotecall(samples->learning_status(loss, network, samples, tr.Hp), pool, batch)
     #l = learning_status(tr, network, batch)
     push!(reports, l)
     push!(ws, sum(batch.W))
