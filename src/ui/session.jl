@@ -230,7 +230,7 @@ end
 
 # return whether or not critical problems were found
 function zeroth_iteration!(session::Session)
-  session.env.itc += -1 && (session.env.itc = 0)
+  session.env.itc == -1 && (session.env.itc = 0)
   Log.section(session.logger, 2, "Initial report")
   report = initial_report(session.env)
   print_report(session.logger, report)
