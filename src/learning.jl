@@ -134,7 +134,7 @@ function batch_updates!(tr::Trainer, network, n, itc)
   end
   Network.gc(network)
   Network.set_test_mode!(network, true)
-  return network, optimizer_state, ls
+  return network, cpu(optimizer_state), ls
 end
 
 #####
