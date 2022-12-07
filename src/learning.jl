@@ -125,16 +125,29 @@ num_samples(tr::Trainer) = length(data_weights(tr))
 num_batches_total(tr::Trainer) = length(tr.dataloader)
 
 function batch_updates!(tr::Trainer, network, n, itc)
-  #Network.set_test_mode!(network, false)
   regws = Network.regularized_params(network)
   L(nn, batch...) = losses(nn, regws, tr.params, tr.Wmean, tr.Hp, batch)[1]
-  ls = Vector{Float32}()
-  optimizer_state, network = Network.train!(network, tr.optimizer_state, L, tr.dataloader, n, tr.params.learnrate[itc]) do i, l
-    push!(ls, l)
+  Distributed.@everywhere CUDA.reclaim()
+  Distributed.@everywhere GC.gc(true)
+  Distributed.@everywhere CUDA.reclaim()
+  Distributed.@everywhere GC.gc(true)
+  workers = Distributed.workers()
+  results = []
+  for worker in workers
+    result = @spawnat worker Network.train!(copy(network), tr.optimizer_state, L, tr.dataloader, n, tr.params.learnrate[itc])
+    push!(results, result)
   end
-  Network.gc(network)
-  Network.set_test_mode!(network, true)
-  return network, cpu(optimizer_state), ls
+  fetch.(results)
+  final_losses = [result[3][end] for result in results]
+  best_result = results[argmin(final_losses)]
+  best_network = best_result[1]
+  best_opt_state = cpu(best_result[2])
+  best_loss = best_result[3]
+  Distributed.@everywhere CUDA.reclaim()
+  Distributed.@everywhere GC.gc(true)
+  Distributed.@everywhere CUDA.reclaim()
+  Distributed.@everywhere GC.gc(true)
+  return best_network, best_opt_state, best_loss
 end
 
 #####

@@ -87,10 +87,11 @@ function lossgrads(f, args...)
   return val, grad
 end
 
-function Network.train!(callback, nn::FluxNetwork, optimizer_state::NamedTuple, loss, data, n, learnrate)
+function Network.train!(nn::FluxNetwork, optimizer_state::NamedTuple, loss, data, n, learnrate)
   Optimisers.adjust!(optimizer_state, learnrate)
   GC.gc(true)
   CUDA.memory_status()
+  ls = zeros(Float32, n)
   for (i, d) in enumerate(data)
     d = Network.convert_input_tuple(nn, d)
     l, grads = Zygote.withgradient(nn, d) do m, d
@@ -99,9 +100,9 @@ function Network.train!(callback, nn::FluxNetwork, optimizer_state::NamedTuple, 
     optimizer_state, nn = Optimisers.update!(optimizer_state, nn, grads[1])
     CUDA.memory_status()
     #GC.gc(true)
-    callback(i, l)
+    ls[i] = l
   end
-  return optimizer_state, nn
+  return nn, optimizer_state, ls
 end
 
 regularized_params_(l) = []
