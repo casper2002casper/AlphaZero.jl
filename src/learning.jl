@@ -73,7 +73,7 @@ entropy_wmean(π, w) = -sum(π .* log.(π .+ eps(eltype(π))) .* w) / sum(w)
 
 wmean(x, w) = sum(x .* w) / sum(w)
 
-function losses(nn, regws, params, Wmean, Hp, (P, V, W, X); HP = false)
+function losses(nn, regws, params, Wmean, Hp, (P, V, W, X))
   # `regws` must be equal to `Network.regularized_params(nn)`
   creg = params.l2_regularization
   P̂, V̂ = Network.forward(nn, X)
@@ -83,11 +83,8 @@ function losses(nn, regws, params, Wmean, Hp, (P, V, W, X); HP = false)
   Lreg = iszero(creg) ?
     zero(Lv) :
     creg * sum(sum(w .* w) for w in regws)
-  L = (mean(W) / Wmean) * (Lp + Lv + Lreg)
-  Hpnet = 0
-  if(HP)
-    Hpnet = entropy_wmean(P̂, W)
-  end
+  Hpnet = entropy_wmean(P̂, W)
+  L = (mean(W) / Wmean) * (Lp + Lv + Lreg + abs(Hpnet - Hp))
   return (L, Lp, Lv, Lreg, 0, Hpnet)
 end
 
@@ -182,7 +179,7 @@ function learning_status(tr::Trainer, network)
   GC.gc(true)
   CUDA.memory_status()
   regws = Network.regularized_params(network)
-  loss(network, samples, Hp) = losses(network, regws, tr.params, tr.Wmean, Hp, samples, HP = true)
+  loss(network, samples, Hp) = losses(network, regws, tr.params, tr.Wmean, Hp, samples)
   pool = default_worker_pool()
   for batch in batches
     l = remotecall(samples->learning_status(loss, network, samples, tr.Hp), pool, batch)
