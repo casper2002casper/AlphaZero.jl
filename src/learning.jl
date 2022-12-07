@@ -85,7 +85,7 @@ function losses(nn, regws, params, Wmean, Hp, (P, V, W, X))
     creg * sum(sum(w .* w) for w in regws)
   Hpnet = entropy_wmean(P̂, W)
   L = (mean(W) / Wmean) * (Lp + Lv + Lreg + abs(Hpnet - Hp))
-  return (L, Lp, Lv, Lreg, 0, Hpnet)
+  return (L, Lp, Lv, Lreg, abs(Hpnet - Hp), Hpnet)
 end
 
 #####
