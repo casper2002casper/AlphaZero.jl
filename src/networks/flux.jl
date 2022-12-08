@@ -91,18 +91,20 @@ function Network.train!(nn::FluxNetwork, optimizer_state::NamedTuple, loss, data
   Optimisers.adjust!(optimizer_state, learnrate)
   GC.gc(true)
   CUDA.memory_status()
-  ls = zeros(Float32, n)
+  ls = Vector{Float32}()
+  nn = gpu(nn)
+  optimizer_state = gpu(optimizer_state)
   for (i, d) in enumerate(data)
     d = Network.convert_input_tuple(nn, d)
     l, grads = Zygote.withgradient(nn, d) do m, d
       loss(m, d...)
     end
     optimizer_state, nn = Optimisers.update!(optimizer_state, nn, grads[1])
-    CUDA.memory_status()
+    #CUDA.memory_status()
     #GC.gc(true)
-    ls[i] = l
+    push!(ls, l)
   end
-  return nn, optimizer_state, ls
+  return cpu(nn), cpu(optimizer_state), ls
 end
 
 regularized_params_(l) = []

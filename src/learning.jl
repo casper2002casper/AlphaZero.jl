@@ -94,12 +94,11 @@ end
 
 struct Trainer
   samples :: AbstractVector{<:TrainingSample}
-  optimizer_state :: NamedTuple
   params :: LearningParams
   dataloader :: Flux.Data.DataLoader # (W, X, A, P, V) tuple obtained after converting `samples`
   Wmean :: Float32
   Hp :: Float32
-  function Trainer(gspec, samples, optimizer_state, params; test_mode=false)
+  function Trainer(gspec, samples, params; test_mode=false)
     if params.use_position_averaging
       samples = merge_by_state(samples)
     end
@@ -107,11 +106,10 @@ struct Trainer
     W, X, P, V = data
     Wmean = mean(W)
     Hp = entropy_wmean(P, W)
-    optimizer_state = optimizer_state |> (params.use_gpu ? gpu : cpu)
     # Create a batches stream
     batchsize = min(params.batch_size, length(W))
     dataloader = MLUtils.DataLoader(data; batchsize, partial=false, shuffle=true, collate=true)
-    return new(samples, optimizer_state, params, dataloader, Wmean, Hp) 
+    return new(samples, params, dataloader, Wmean, Hp) 
   end
 end
 
@@ -121,30 +119,28 @@ num_samples(tr::Trainer) = length(data_weights(tr))
 
 num_batches_total(tr::Trainer) = length(tr.dataloader)
 
-function batch_updates!(tr::Trainer, network, n, itc)
+function clearGPUs()
+  Distributed.@everywhere CUDA.reclaim()
+  Distributed.@everywhere GC.gc(true)
+  Distributed.@everywhere CUDA.device_reset!()
+  Distributed.@everywhere CUDA.reclaim()
+  Distributed.@everywhere GC.gc(true)
+end
+
+function batch_updates!(tr::Trainer, network, optimizer_state, n, itc)
   regws = Network.regularized_params(network)
   L(nn, batch...) = losses(nn, regws, tr.params, tr.Wmean, tr.Hp, batch)[1]
-  Distributed.@everywhere CUDA.reclaim()
-  Distributed.@everywhere GC.gc(true)
-  Distributed.@everywhere CUDA.reclaim()
-  Distributed.@everywhere GC.gc(true)
   workers = Distributed.workers()
   results = []
   for worker in workers
-    result = @spawnat worker Network.train!(copy(network), tr.optimizer_state, L, tr.dataloader, n, tr.params.learnrate[itc])
+    result = @spawnat worker Network.train!(network, optimizer_state, L, tr.dataloader, n, tr.params.learnrate[itc])
     push!(results, result)
   end
   fetch.(results)
+  clearGPUs()
   final_losses = [result[3][end] for result in results]
   best_result = results[argmin(final_losses)]
-  best_network = best_result[1]
-  best_opt_state = cpu(best_result[2])
-  best_loss = best_result[3]
-  Distributed.@everywhere CUDA.reclaim()
-  Distributed.@everywhere GC.gc(true)
-  Distributed.@everywhere CUDA.reclaim()
-  Distributed.@everywhere GC.gc(true)
-  return best_network, best_opt_state, best_loss
+  return best_result[1], best_result[2], best_result[3]
 end
 
 #####
@@ -163,6 +159,7 @@ function mean_learning_status(reports, ws)
 end
 
 function learning_status(l, network, samples, Hp)
+  network = gpu(network)
   samples = Network.convert_input_tuple(network, samples)
   #W, X, P, V = samples
   Ls = l(network, samples, Hp)
@@ -171,29 +168,22 @@ function learning_status(l, network, samples, Hp)
 end
 
 function learning_status(tr::Trainer, network)
-  #Network.set_test_mode!(network, true)
   batchsize = min(tr.params.loss_computation_batch_size, num_samples(tr))
   batches = MLUtils.DataLoader(tr.dataloader.data; batchsize, partial=true, collate=true)
-  reports = []
-  ws = []
   GC.gc(true)
   CUDA.memory_status()
   regws = Network.regularized_params(network)
   loss(network, samples, Hp) = losses(network, regws, tr.params, tr.Wmean, Hp, samples)
   pool = default_worker_pool()
+  reports = []
+  ws = []
   for batch in batches
     l = remotecall(samples->learning_status(loss, network, samples, tr.Hp), pool, batch)
-    #l = learning_status(tr, network, batch)
     push!(reports, l)
     push!(ws, sum(batch.W))
-    #CUDA.memory_status()
-    #GC.gc(true)
   end
   reports = fetch.(reports)
-  Distributed.@everywhere CUDA.reclaim()
-  Distributed.@everywhere GC.gc(true)
-  Distributed.@everywhere CUDA.reclaim()
-  Distributed.@everywhere GC.gc(true)
+  clearGPUs()
   return mean_learning_status(reports, ws)
 end
 
