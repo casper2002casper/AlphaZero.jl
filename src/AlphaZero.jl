@@ -55,6 +55,7 @@ module AlphaZero
   export Network
   export AbstractNetwork
   export OptimiserSpec
+  export CyclicNesterov, Adam, ScheduledAdam
 
   # Utilities to batch oracle calls
   include("batchifier.jl")

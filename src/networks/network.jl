@@ -3,7 +3,7 @@ A generic, framework agnostic interface for neural networks.
 """
 module Network
 
-export AbstractNetwork, OptimiserSpec
+export AbstractNetwork, OptimiserSpec, CyclicNesterov, Adam, ScheduledAdam
 
 using ..AlphaZero
 
@@ -172,7 +172,41 @@ Abstract type for an optimiser specification.
 """
 abstract type OptimiserSpec end
 
+"""
+    CyclicNesterov(; lr_base, lr_high, lr_low, momentum_low, momentum_high)
 
+SGD optimiser with a cyclic learning rate and cyclic Nesterov momentum.
+
+  - During an epoch, the learning rate goes from `lr_low`
+    to `lr_high` and then back to `lr_low`.
+  - The momentum evolves in the opposite way, from high values
+    to low values and then back to high values.
+"""
+@kwdef struct CyclicNesterov <: OptimiserSpec
+  lr_base :: Float32
+  lr_high :: Float32
+  lr_low  :: Float32
+  momentum_low :: Float32
+  momentum_high :: Float32
+end
+
+"""
+    Adam(;lr)
+
+Adam optimiser.
+"""
+@kwdef struct Adam <: OptimiserSpec
+  lr :: Float32
+end
+
+"""
+    ScheduledAdam(;lr)
+
+Scheduled Adam optimiser.
+"""
+@kwdef struct ScheduledAdam <: OptimiserSpec
+  lr :: AbstractSchedule
+end
 
 """
     train!(callback, ::AbstractNetwork, opt::OptimiserSpec, loss, batches, n, itc)

@@ -1,7 +1,7 @@
 #####
 ##### Training hyperparameters (taken from connect-four)
 #####
-using Optimisers
+
 Network = NetLib.ResNet
 
 netparams = NetLib.ResNetHP(
@@ -48,7 +48,7 @@ learning = LearningParams(
   samples_weighing_policy=LOG_WEIGHT,
   batch_size=1024,
   loss_computation_batch_size=1024,
-  optimiser=Optimisers.Adam(2e-3),
+  optimiser=Adam(lr=2e-3),
   learnrate=ConstSchedule(1e-3),
   l2_regularization=1e-4,
   nonvalidity_penalty=1.,

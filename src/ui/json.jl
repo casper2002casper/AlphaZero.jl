@@ -14,6 +14,8 @@ for T in [
     # Parameters
     Params, SelfPlayParams, LearningParams, ArenaParams,
     SimParams, MctsParams, MemAnalysisParams,
+    # Optimisers
+    CyclicNesterov, Adam, ScheduledAdam,
     # Schedules
     ConstSchedule, PLSchedule, StepSchedule
   ]
@@ -21,6 +23,11 @@ for T in [
 end
 
 # Abstract types
+
+JSON3.StructType(::Type{OptimiserSpec}) = JSON3.AbstractType()
+JSON3.subtypekey(::Type{OptimiserSpec}) = :type
+JSON3.subtypes(::Type{OptimiserSpec}) =
+  (adam=Adam, cyclic_nesterov=CyclicNesterov, scheduled_adam=ScheduledAdam)
 
 JSON3.StructType(::Type{<:AbstractSchedule}) = JSON3.AbstractType()
 JSON3.subtypekey(::Type{<:AbstractSchedule}) = :type

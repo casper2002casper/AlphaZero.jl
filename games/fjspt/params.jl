@@ -1,4 +1,3 @@
-using Optimisers
 Network = NetLib.Gin
 
 netparams = NetLib.GinHP()
@@ -25,7 +24,7 @@ learning = LearningParams(
   use_position_averaging=false,
   samples_weighing_policy=CONSTANT_WEIGHT,
   l2_regularization=1e-5,
-  optimiser=Optimisers.Adam(1e-3),
+  optimiser=Adam(lr=1e-3),
   learnrate=ConstSchedule(1e-3),
   batch_size=1500,
   loss_computation_batch_size=2048,
