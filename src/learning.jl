@@ -119,14 +119,6 @@ num_samples(tr::Trainer) = length(data_weights(tr))
 
 num_batches_total(tr::Trainer) = length(tr.dataloader)
 
-function clearGPUs()
-  Distributed.@everywhere CUDA.reclaim()
-  Distributed.@everywhere GC.gc(true)
-  Distributed.@everywhere CUDA.device_reset!()
-  Distributed.@everywhere CUDA.reclaim()
-  Distributed.@everywhere GC.gc(true)
-end
-
 function batch_updates!(tr::Trainer, network, optimizer_state, n, itc)
   regws = Network.regularized_params(network)
   L(nn, batch...) = losses(nn, regws, tr.params, tr.Wmean, tr.Hp, batch)[1]
@@ -137,7 +129,6 @@ function batch_updates!(tr::Trainer, network, optimizer_state, n, itc)
     push!(results, result)
   end
   fetch.(results)
-  clearGPUs()
   final_losses = [result[3][end] for result in results]
   best_result = results[argmin(final_losses)]
   return best_result[1], best_result[2], best_result[3]
@@ -169,21 +160,23 @@ end
 
 function learning_status(tr::Trainer, network)
   batchsize = min(tr.params.loss_computation_batch_size, num_samples(tr))
-  batches = MLUtils.DataLoader(tr.dataloader.data; batchsize, partial=true, collate=true)
-  GC.gc(true)
-  CUDA.memory_status()
+  batches = MLUtils.DataLoader(tr.dataloader.data; batchsize, partial=true, collate=true, parallel=false)
+  #run(`nvidia-smi`)
   regws = Network.regularized_params(network)
   loss(network, samples, Hp) = losses(network, regws, tr.params, tr.Wmean, Hp, samples)
   pool = default_worker_pool()
   reports = []
   ws = []
   for batch in batches
-    l = remotecall(samples->learning_status(loss, network, samples, tr.Hp), pool, batch)
+    l = @async remotecall_fetch(pool, loss, batch, network, tr.Hp) do f, samples, nn, Hp
+      return Util.@printing_errors begin
+          return learning_status(f, nn, samples, Hp)
+      end
+    end
     push!(reports, l)
     push!(ws, sum(batch.W))
   end
   reports = fetch.(reports)
-  clearGPUs()
   return mean_learning_status(reports, ws)
 end
 
