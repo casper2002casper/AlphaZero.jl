@@ -87,7 +87,8 @@ function lossgrads(f, args...)
   return val, grad
 end
 
-function Network.train!(nn::FluxNetwork, optimizer_state::NamedTuple, loss, data, n)
+function Network.train!(nn::FluxNetwork, optimizer_state::NamedTuple, loss, data, n, learnrate)
+  Optimisers.adjust!(optimizer_state, learnrate)
   #GC.gc(true)
   #CUDA.memory_status()
   ls = Vector{Float32}()
