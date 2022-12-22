@@ -116,7 +116,7 @@ function Network.train!(
   end
 end
 
-function Network.train!(callback, nn::KNetwork, opt::Adam, loss, data, n, itc)
+function Network.train!(callback, nn::KNetwork, opt::Network.Adam, loss, data, n, itc)
   optimiser = Knet.Adam(lr=opt.lr)
   for (i, l) in enumerate(Knet.minimize(loss, data, optimiser))
     callback(i, l)

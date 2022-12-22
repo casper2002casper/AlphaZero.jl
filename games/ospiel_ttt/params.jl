@@ -1,3 +1,4 @@
+using Optimisers
 Network = NetLib.SimpleNet
 
 netparams = NetLib.SimpleNetHP(
@@ -41,12 +42,7 @@ learning = LearningParams(
   use_gpu=false,
   samples_weighing_policy=LOG_WEIGHT,
   l2_regularization=1e-4,
-  optimiser=CyclicNesterov(
-    lr_base=1e-3,
-    lr_high=1e-2,
-    lr_low=1e-3,
-    momentum_high=0.9,
-    momentum_low=0.8),
+  optimiser=Optimisers.Nesterov(1e-2, 0.9),
   learnrate=ConstSchedule(1e-3),
   batch_size=32,
   loss_computation_batch_size=2048,
