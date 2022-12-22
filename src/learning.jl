@@ -1,5 +1,6 @@
 using MLUtils, Distributed
 using Flux: cpu, gpu
+using Optimisers
 #####
 ##### Converting samples
 #####
@@ -73,16 +74,15 @@ entropy_wmean(π, w) = -sum(π .* log.(π .+ eps(eltype(π))) .* w) / sum(w)
 
 wmean(x, w) = sum(x .* w) / sum(w)
 
-function losses(nn, regws, params, Wmean, Hp, (P, V, W, X))
+function losses(nn, creg, Wmean, Hp, (P, V, W, X))
   # `regws` must be equal to `Network.regularized_params(nn)`
-  creg = params.l2_regularization
   P̂, V̂ = Network.forward(nn, X)
   P̂ = MLUtils.batch(P̂, 0, n=size(P,1))
   Lp = klloss_wmean(P̂, P, W) - Hp
   Lv = mse_wmean(V̂, V, W)
   Lreg = iszero(creg) ?
     zero(Lv) :
-    creg * sum(sum(w .* w) for w in regws)
+    creg * sum(sum(w .* w) for w in Network.regularized_params(nn))
   Hpnet = entropy_wmean(P̂, W)
   L = (mean(W) / Wmean) * (Lp + Lv + Lreg + abs(Hpnet - Hp))
   return (L, Lp, Lv, Lreg, abs(Hpnet - Hp), Hpnet)
@@ -121,11 +121,12 @@ num_batches_total(tr::Trainer) = length(tr.dataloader)
 
 function batch_updates!(tr::Trainer, network, optimizer_state, n, itc)
   regws = Network.regularized_params(network)
-  L(nn, batch...) = losses(nn, regws, tr.params, tr.Wmean, tr.Hp, batch)[1]
+  L(nn, batch...) = losses(nn,  tr.params.l2_regularization, tr.Wmean, tr.Hp, batch)[1]
+  Optimisers.adjust!(optimizer_state, tr.params.learnrate[itc])
   workers = Distributed.workers()
   results = []
   for worker in workers
-    result = @spawnat worker Network.train!(network, optimizer_state, L, tr.dataloader, n, tr.params.learnrate[itc])
+    result = @spawnat worker Network.train!(network, optimizer_state, L, tr.dataloader, n)
     push!(results, result)
   end
   fetch.(results)
@@ -162,12 +163,12 @@ function learning_status(tr::Trainer, network)
   batchsize = min(tr.params.loss_computation_batch_size, num_samples(tr))
   batches = MLUtils.DataLoader(tr.dataloader.data; batchsize, partial=true, collate=true, parallel=false)
   #run(`nvidia-smi`)
-  regws = Network.regularized_params(network)
-  loss(network, samples, Hp) = losses(network, regws, tr.params, tr.Wmean, Hp, samples)
+  loss(network, samples, Hp) = losses(network, tr.params.l2_regularization, tr.Wmean, Hp, samples)
   pool = default_worker_pool()
   reports = []
   ws = []
   for batch in batches
+    @show Sys.free_memory()/2^20
     l = @async remotecall_fetch(pool, loss, batch, network, tr.Hp) do f, samples, nn, Hp
       return Util.@printing_errors begin
           return learning_status(f, nn, samples, Hp)
