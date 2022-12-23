@@ -168,6 +168,9 @@ function learning_status(tr::Trainer, network)
   reports = []
   ws = []
   for batch in batches
+    while(!isready(pool)) 
+      sleep(1)
+    end
     l = @async remotecall_fetch(pool, loss, batch, network, tr.Hp) do f, samples, nn, Hp
       return Util.@printing_errors begin
           return learning_status(f, nn, samples, Hp)
