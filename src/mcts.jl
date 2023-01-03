@@ -277,7 +277,7 @@ function policy(env::Env, game)
         rethrow(e)
       end
     end
-  π = [iszero(a.N) ? 0.0 : a.W/a.N for a in info.stats]
+  π = [iszero(a.N) ? 0.0 : a.N/a.W for a in info.stats]
   π ./= sum(π)
   clamp!(π, 0.0, 1.0)
   return actions, π
