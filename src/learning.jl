@@ -84,8 +84,8 @@ function losses(nn, regws, params, Wmean, Hp, (P, V, W, X))
     zero(Lv) :
     creg * sum(sum(w .* w) for w in regws)
   Hpnet = entropy_wmean(P̂, W)
-  L = (mean(W) / Wmean) * (Lp + Lv + Lreg + abs(Hpnet - Hp))
-  return (L, Lp, Lv, Lreg, abs(Hpnet - Hp), Hpnet)
+  L = (mean(W) / Wmean) * (Lp + Lv + Lreg + abs(Hpnet - Hp)/100)
+  return (L, Lp, Lv, Lreg, abs(Hpnet - Hp)/100, Hpnet)
 end
 
 #####
@@ -124,13 +124,17 @@ function batch_updates!(tr::Trainer, network, optimizer_state, n, itc)
   L(nn, batch...) = losses(nn, regws, tr.params, tr.Wmean, tr.Hp, batch)[1]
   workers = Distributed.workers()
   results = []
-  for worker in workers
-    result = @spawnat worker Network.train!(network, optimizer_state, L, tr.dataloader, n, tr.params.learnrate[itc])
+  nworkers = length(workers)
+  for (i, worker) in enumerate(workers)
+    lr = tr.params.learnrate[itc]*3.0^(i-1-nworkers÷2)
+    result = @spawnat worker Network.train!(network, optimizer_state, L, tr.dataloader, n, lr)
     push!(results, result)
   end
   fetch.(results)
   final_losses = [result[3][end] for result in results]
-  best_result = results[argmin(final_losses)]
+  best = argmin(final_losses)
+  @show tr.params.learnrate[itc]*3.0^(best-1-nworkers÷2)
+  best_result = results[best]
   return best_result[1], best_result[2], best_result[3]
 end
 
