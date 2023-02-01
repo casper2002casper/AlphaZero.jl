@@ -179,7 +179,7 @@ end
 #####
 ##### Main algorithm
 #####
-
+#0.25 32.33, 0.44 33.0 0.15 34.33 0.3 -33.17
 function uct_scores(info::StateInfo, cpuct, ϵ, η, Q_parent)
   total_visits = 0
   total_visited_policy = 0.
@@ -188,11 +188,11 @@ function uct_scores(info::StateInfo, cpuct, ϵ, η, Q_parent)
     child.N > 0 && (total_visited_policy += child.P)
   end
   sqrtNtot = sqrt(max(total_visits, 1))
-  Q_fpu = Q_parent - 0.44 * abs(info.Vest) * sqrt(total_visited_policy)
+  Q_fpu = Q_parent - 0.44 * sqrt(total_visited_policy)
   return map(enumerate(info.stats)) do (i, a)
     Q = (a.N != 0) ? a.W / a.N : Q_fpu
     P = iszero(ϵ) ? a.P : (1-ϵ) * a.P + ϵ * η[i]
-    Q + cpuct * abs(info.Vest) * P * sqrtNtot / (a.N + 1), Q
+    Q + cpuct * P * sqrtNtot / (a.N + 1), Q
   end
 end
 

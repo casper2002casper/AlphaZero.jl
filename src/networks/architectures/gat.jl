@@ -47,7 +47,7 @@ function Gat(gspec::AbstractGameSpec, hyper::GatHP)
   vhead = Chain(
     SkipConnection(Chain(Dense_layers(hyper.hidden_size*3 + n_size, hyper.hidden_size*2, hyper.hidden_size, hyper.depth_vhead, selu)...), vcat),
     Dense(hyper.hidden_size*4+n_size, hyper.hidden_size),
-    Dense(hyper.hidden_size, 1))
+    Dense(hyper.hidden_size, 1, sigmoid))
   phead = Chain(
     Dense(hyper.hidden_size*6 + n_size => hyper.hidden_size*5, selu; init = Flux.kaiming_normal(gain=1)),
     Dense(hyper.hidden_size*5 => hyper.hidden_size*4, selu; init = Flux.kaiming_normal(gain=1)),

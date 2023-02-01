@@ -65,7 +65,7 @@ end
 
 # Surprisingly, Flux does not like the following code (scalar operations):
 # mse_wmean(ŷ, y, w) = sum((ŷ .- y).^2 .* w) / sum(w)
-mse_wmean(ŷ, y, w) = sum(((ŷ .- y)./y).^2 .* w) / sum(w)
+mse_wmean(ŷ, y, w) = sum((ŷ .- y).^2 .* w) / sum(w)
 
 klloss_wmean(π̂, π, w) = -sum(π .* log.(π̂ .+ eps(eltype(π))) .* w) / sum(w)
 

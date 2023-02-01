@@ -25,6 +25,8 @@ mutable struct GameEnv <: GI.AbstractGameEnv
   M::UInt8
   N::UInt8
   K::UInt8
+  LB::UInt16
+  UB::UInt16
   job_ids::Vector{UInt8} # i -> operations
   #Solution
   assigned::Matrix{UInt16} #o -> m,k
@@ -48,6 +50,8 @@ Base.copy(s::GameEnv) = GameEnv(
   s.M,
   s.N,
   s.K,
+  s.LB,
+  s.UB,
   s.job_ids,
   #Mutable values
   copy(s.assigned),
@@ -66,7 +70,7 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
   total_opps = sum(num_operations)
   p_time = [
     rand(rng, spec.P.first:spec.P.second, total_opps, M) fill(0xFF, total_opps)
-    fill(0xFF, 2, M) zeros(2, 1)]
+    fill(0xFF, 2, M) zeros(2, 1)] #plus S/T
   for o in 1:total_opps
     is_return_opperation = o + 1 in job_ids
     if (!is_return_opperation)
@@ -89,6 +93,8 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
     M,
     N,
     K,
+    0,
+    0,
     job_ids,
     #Solution
     assigned,
@@ -101,8 +107,13 @@ function GI.init(spec::GameSpec, itc::Int, rng::AbstractRNG)
 end
 
 function GI.setup!(g::GameEnv)
+  #@show g
   foreach(o -> propage_done_time(g, o, g.M + 1), g.job_ids[1:end-1])
   g.ready_time[g.job_ids[end]+1, :] = g.done_time[g.job_ids[end]+1, :] .= maximum(g.done_time[g.job_ids[2:end].-1, 2])
+  process_time_available = copy(g.process_time)
+  process_time_available[g.process_time .== 0xFF] .= 0
+  g.UB = sum(maximum(process_time_available, dims=2)) + ((g.job_ids[end]-1)*2) * maximum(g.transport_time)
+  g.LB = g.done_time[g.job_ids[end]+1, 2]
 end
 
 struct FJSPTInstance
@@ -119,46 +130,56 @@ function propage_done_time(g::GameEnv, o, m_old)
   while (true)
     m = findall(!=(0xFF), g.process_time[o, :])
     g.ready_time[o, 1] = m_old == g.M + 1 ? 0 : g.done_time[o-1, 2]
-    g.ready_time[o, 2] = g.done_time[o, 1] = g.ready_time[o, 1] + floor(mean(g.transport_time[m_old, m]))
-    g.done_time[o, 2] = g.ready_time[o, 2] + floor(mean(g.process_time[o, m]))
+    g.ready_time[o, 2] = g.done_time[o, 1] = g.ready_time[o, 1] + minimum(g.transport_time[m_old, m])
+    g.done_time[o, 2] = g.ready_time[o, 2] + minimum(g.process_time[o, m])
     m == [g.M + 1] && break
     m_old = m
     o += 1
   end
 end
 
-function GI.init(spec::GameSpec, instance_string::String) #fix
+function GI.init(spec::GameSpec, instance_string::String) 
   instance = JSON3.read(instance_string, FJSPTInstance)
   p_time = reshape(instance.process_time, :, instance.num_machines)
-  t_time = reshape(instance.transport_time, :, instance.num_machines + 1)
-  t_time = [t_time[2:end, 2:end] t_time[2:end, 1]; t_time[1, 2:end]... 0]#reshape so LU is last
-  N = length(instance.num_operations)
+  operations = instance.num_operations .+ 1
+  job_ids = cumsum([1; operations])
+  total_opps = sum(operations)
+  N = length(operations)
   M = instance.num_machines
   K = instance.num_vehicles
-  N_OPP = sum(instance.num_operations)
-  T = N_OPP * 2 + N + 1
-  S = N_OPP * 2 + N + 2
-  conj_tar = generate_conjuctive_edges(instance.num_operations, N_OPP, T, S)
-  start_edges_n = collect(0:N-1) .+ S
-  node_done = gen_done_time(p_time, t_time, conj_tar, start_edges_n, S, T)
-  num_nodes = sum(p_time .!= 0xff, dims=1) .+ K
-  node_ids = cumsum(num_nodes)
+  p_time_dummy = fill(UInt8(0xFF), total_opps+2, M+1)
+  i = 1
+  for o in 1:total_opps
+    is_return_opperation = o + 1 in job_ids
+    if is_return_opperation
+      p_time_dummy[o, :] = [fill(0xFF, M); 0] 
+    else
+      p_time_dummy[o, 1:M] = p_time[i,:] 
+      i += 1
+    end
+  end
+  p_time_dummy[end-1:end, M+1] .= zeros(2, 1)
+  t_time = reshape(instance.transport_time, :, instance.num_machines + 1)
+  t_time = [t_time[2:end, 2:end] t_time[2:end, 1]; t_time[1, 2:end]... 0]#reshape so LU is last
+
+  assigned = zeros(UInt16, total_opps + 2, 2)
+  assigned[total_opps+1, 2] = M + 1
   return GameEnv(
-    p_time,
+    p_time_dummy,
     t_time,
-    instance.num_machines,
+    M,
     N,
-    instance.num_vehicles,
-    instance.num_operations,
-    #sum(maximum(replace(p_time, 0xff => 0x00), dims=2)) + maximum(t_time) * (2 * N_OPP + N), #All worst operations in a row,
-    #node_done[T],
-    #State
-    zeros(UInt16, NUM_OPP * 2 + N, 2),
-    zeros(UInt16, NUM_OPP * 2 + N),
-    zeros(UInt16, NUM_OPP * 2 + N),
+    K,
+    0,
+    0,
+    job_ids,
+    #Solution
+    assigned,
+    zeros(UInt16, total_opps + 2, 2),
+    zeros(UInt16, total_opps + 2, 2),
     #Info
-    zeros(UInt16, M),
-    zeros(UInt16, K),
+    fill(total_opps + 1, M + 1),
+    fill(total_opps + 1, K)
   )
 end
 
@@ -253,8 +274,9 @@ end
 
 function GI.white_reward(g::GameEnv)
   if (GI.game_terminated(g))
-    #return ((g.UB - g.done_time[g.job_ids[end]+1, 2]) / (g.UB - g.LB))
-    return -Float32(g.done_time[g.job_ids[end]+1, 2])
+    done_time = g.done_time[g.job_ids[end]+1, 2]
+    return ((g.UB - done_time) / (g.UB - g.LB))
+    #return -Float32(g.done_time[g.job_ids[end]+1, 2])
   end
   return 0
 end
@@ -279,17 +301,17 @@ function GI.vectorize_state(::GameSpec, s::GameEnv)
   opp_left_m[M] -= 1 #dont count s/t
   all_opp_done_m = vec(opp_left_m .== 0)
   node_data[5, :] = [is_scheduled; all_opp_done_m; zeros(s.K)] #is fully scheduled
-  node_data[6, :] = [s.ready_time[:, 1]; s.done_time[s.last_o_m, 1]; s.done_time[s.last_o_k, 2]]#ready time
+  node_data[6, :] = [s.ready_time[:, 1]; s.done_time[s.last_o_m, 1]; s.done_time[s.last_o_k, 2]] ./ s.LB#ready time
   opp_left_i = [sum(s.assigned[s.job_ids[i]:s.job_ids[i+1]-1, 2] .== 0) for i in 1:s.N]
   job_per_op = vcat([fill(i, s.job_ids[i+1] - s.job_ids[i]) for i in 1:s.N]...)
-  node_data[7, :] = [opp_left_i[job_per_op]; 0.0; sum(opp_left_i); opp_left_m; fill(sum(opp_left_m), s.K)] #operations left
+  node_data[7, :] = [opp_left_i[job_per_op]; 0.0; sum(opp_left_i); opp_left_m; fill(sum(opp_left_m), s.K)] ./ s.M #operations left
   process_left = copy(s.process_time)
   process_left[.!machine_available] .= 0
   possible_m = .!all_opp_done_m
-  node_data[8, :] = [s.done_time[:, 2] .- s.ready_time[:, 1]; mean(process_left, dims=1)'; fill(mean(s.transport_time[s.assigned[s.last_o_k, 2], possible_m]) + mean(s.transport_time[possible_m, possible_m]), s.K)]#avg duration
+  node_data[8, :] = [s.done_time[:, 2] .- s.ready_time[:, 1]; mean(process_left, dims=1)'; fill(mean(s.transport_time[s.assigned[s.last_o_k, 2], possible_m]) + mean(s.transport_time[possible_m, possible_m]), s.K)] ./ s.LB#avg duration
   machine_per_o = sum(machine_available, dims=2)
   machine_per_o[machine_per_o.==0] .= 1
-  node_data[9, :] = [machine_per_o; opp_left_m; fill(sum(opp_left_m), s.K)] #number of neighbours
+  node_data[9, :] = [machine_per_o; opp_left_m; fill(sum(opp_left_m), s.K)] ./ s.M #number of neighbours
   #edges
   src = Vector{UInt16}()
   tar = Vector{UInt16}()
@@ -298,18 +320,19 @@ function GI.vectorize_state(::GameSpec, s::GameEnv)
     is_first_op = o in s.job_ids
     is_last_op = o in (s.job_ids .- 1)
     #conj edges
+    mean_time = max(mean(filter(!=(0xFF), s.process_time[o,:]))+1, 1.0)
     if (is_first_op)
       append!(src, num_operations - 1)
       append!(tar, o)
-      append!(edge_data, 0)
+      append!(edge_data, 1/mean_time)
     elseif (is_last_op)
       append!(src, [o - 1; o])
       append!(tar, [o; num_operations])
-      append!(edge_data, [0; 0])
+      append!(edge_data, [1/mean_time; 1.0])
     else
       append!(src, o - 1)
       append!(tar, o)
-      append!(edge_data, 0)
+      append!(edge_data, 1/mean_time)
     end
     #machines
     if (s.assigned[o, 2] != 0)
@@ -330,8 +353,8 @@ function GI.vectorize_state(::GameSpec, s::GameEnv)
     end
     o_mk_src = fill(o, length(m) + length(k))
     o_mk_tar = [m; k .+ M] .+ num_operations
-    time_to_m = s.transport_time[prev_m_k, prev_m]
-    o_mk_data = [s.process_time[o, m]; length(time_to_m) <= 1 ? time_to_m : mean(time_to_m, dims=2)]
+    time_to_m = max.(s.transport_time[prev_m_k, prev_m].+1,1)
+    o_mk_data = inv.([max.(s.process_time[o, m].+1,1); length(time_to_m) <= 1 ? time_to_m : mean(time_to_m, dims=2)])
     #@assert length(o_mk_src) == length(o_mk_data)
     append!(src, [o_mk_src; o_mk_tar]) #bidirectional
     append!(tar, [o_mk_tar; o_mk_src])
@@ -339,7 +362,7 @@ function GI.vectorize_state(::GameSpec, s::GameEnv)
   end
   m_k_src = repeat(num_operations+1:num_operations+M, s.K)
   m_k_tar = vcat([fill(num_operations + M + k, M) for k in 1:s.K]...)
-  m_k_data = vcat([s.transport_time[s.assigned[s.last_o_k[k], 2], 1:M] for k in 1:s.K]...)
+  m_k_data = vcat([1/max.(s.transport_time[s.assigned[s.last_o_k[k], 2], 1:M].+1,1) for k in 1:s.K]...)
   #@assert length(m_k_src) == length(m_k_data) == length(m_k_tar)
   append!(src, [m_k_src; m_k_tar]) #bidirectional
   append!(tar, [m_k_tar; m_k_src])
@@ -347,7 +370,8 @@ function GI.vectorize_state(::GameSpec, s::GameEnv)
   #self loops
   append!(src, 1:num_nodes)
   append!(tar, 1:num_nodes)
-  append!(edge_data, zeros(Float32, num_nodes))
+  append!(edge_data, ones(Float32, num_nodes))
+  #@show edge_data
   return GNNGraph(
     src,
     tar,

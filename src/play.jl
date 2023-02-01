@@ -351,6 +351,7 @@ end
 
 function play_out(gspec, player, state)
   game = GI.init(gspec, state)
+  GI.setup!(game)
   i = 1
   while true
     if GI.game_terminated(game)
