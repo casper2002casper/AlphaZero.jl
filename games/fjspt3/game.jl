@@ -379,18 +379,36 @@ function GI.read_state(::GameSpec)#input problem
   return nothing
 end
 
-function print_schedule(g::GameEnv, id, is_machine)
+function print_graph(g::GameEnv)
+  graph = GI.vectorize_state(GI.spec(g), g)
+  is_scheduled = g.assigned[1:end-2, 2] .!= 0
+  operation_nodes = ones(Int, length(is_scheduled))
+  operation_nodes[is_scheduled] .= 2
+  membership = [operation_nodes; 3; 4; fill(5, g.M + 1); fill(6, g.K)]
+  nodecolor = [colorant"lightblue", colorant"blue", colorant"green", colorant"red", colorant"orange", colorant"yellow"]
+  nodefillc = nodecolor[membership]
+  draw(PNG("games/fjspt3/graphs/graph" * string(count(is_scheduled)) * ".png", 50cm, 50cm), gplot(graph, nodelabel=1:nv(graph), nodefillc=nodefillc))
+end
+
+function print_schedule(g::GameEnv, id; is_machine)
   print(crayon"white", is_machine ? "m" : "k", id, ":")
   line = []
   datarow = is_machine ? 2 : 1
   o = is_machine ? g.last_o_m[id] : g.last_o_k[id]
   t = g.done_time[g.job_ids[end]+1, datarow]
+  m_i = g.M+1
   while (o != g.job_ids[end])
     i = count(<=(o), g.job_ids)
-    #ready of next is less than done of current
-    append!(line, [repeat("-", t - g.done_time[o, datarow]); crayon"dark_gray"])
+    #ready+1->done->ready reverse
+    m_k = g.assigned[o, 2]
+    t_setup = is_machine ? 0 : min(t - g.done_time[o, datarow], g.transport_time[m_k ,m_i])
+    append!(line, [repeat("=", t_setup); crayon"dark_gray"])
+    append!(line, [repeat("-", t - g.done_time[o, datarow] - t_setup); crayon"dark_gray"])
     append!(line, [repeat("=", g.done_time[o, datarow] - g.ready_time[o, datarow]); Crayon(foreground=i)])
     t = g.ready_time[o, datarow]
+    is_first = o in g.job_ids
+    prev_o_i = is_first ? g.job_ids[end] : o - 1
+    m_i = g.assigned[prev_o_i, 2]
     o = maximum([(g.done_time[o, datarow], o) for o in filter(o -> g.assigned[o, datarow] == id && g.done_time[o, datarow] <= t, 1:(g.job_ids[end]-1))], init=(0, g.job_ids[end]))[2]
   end
   append!(line, [repeat("-", t); crayon"dark_gray"])
@@ -400,32 +418,16 @@ end
 
 function GI.render(g::GameEnv)
   for m in 1:g.M
-    print_schedule(g, m, true)
+    print_schedule(g, m, is_machine = true)
   end
   for k in 1:g.K
-    print_schedule(g, k, false)
+    print_schedule(g, k, is_machine = false)
   end
   for n in 1:g.N
     print(Crayon(foreground=n), "n", n, " ")
   end
   print(crayon"white", "makespan: ", g.done_time[g.job_ids[end]+1, 2] * 1)
-  #print(crayon"white", " lowerbound: ", g.LB * 1)
-  #print(crayon"white", " upperbound: ", g.UB * 1)
   print(crayon"white", " reward: ", GI.white_reward(g))
   println(crayon"reset")
-  # @show g.assigned * 1
-  # @show g.previous * 1
-  # @show g.ready_time * 1
-  # @show g.done_time * 1
-  # @show g.last_o_k * 1
-  # @show g.last_o_m * 1
-  #print graph
-  graph = GI.vectorize_state(GI.spec(g), g)
-  is_scheduled = g.assigned[1:end-2, 2] .!= 0
-  operation_nodes = ones(Int, length(is_scheduled))
-  operation_nodes[is_scheduled] .= 2
-  membership = [operation_nodes; 3; 4; fill(5, g.M + 1); fill(6, g.K)]
-  nodecolor = [colorant"lightblue", colorant"blue", colorant"green", colorant"red", colorant"orange", colorant"yellow"]
-  nodefillc = nodecolor[membership]
-  draw(PNG("games/fjspt3/graphs/graph" * string(count(is_scheduled)) * ".png", 50cm, 50cm), gplot(graph, nodelabel=1:nv(graph), nodefillc=nodefillc))
+  #print_graph(g)
 end
