@@ -14,9 +14,9 @@ self_play = SelfPlayParams(
     alternate_colors=false),
   mcts=MctsParams(
     num_iters_per_turn=500,
-    cpuct=1.4,
-    temperature=PLSchedule([1, 5], [1.0, 0.0]),
-    dirichlet_noise_ϵ=0.1,
+    cpuct=1.0,
+    temperature=PLSchedule([1, 5], [0.0, 0.0]),
+    dirichlet_noise_ϵ=0.,
     dirichlet_noise_α=0.03))
 
 
@@ -24,11 +24,11 @@ learning = LearningParams(
   use_gpu=true,
   use_position_averaging=false,
   samples_weighing_policy=CONSTANT_WEIGHT,
-  l2_regularization=1e-4,
+  l2_regularization=1e-5,
   optimiser= Optimisers.Nesterov(1e-2, 0.9), 
-  learnrate = PLSchedule([1, 2, 10], [1e-2, 1e-3, 1e-4]), 
-  batch_size=1_000,
-  loss_computation_batch_size=1_500,
+  learnrate = PLSchedule([1, 2, 10, 60, 120], [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]), 
+  batch_size=1_200,
+  loss_computation_batch_size=4_500,
   nonvalidity_penalty=0.,
   min_checkpoints_per_epoch=1,
   max_batches_per_checkpoint=2_000,
@@ -47,7 +47,7 @@ benchmark = [
   #   Benchmark.Full(MctsParams(self_play.mcts, temperature=ConstSchedule(0.),  dirichlet_noise_ϵ=0.)),
   #   benchmark_sim),
   Benchmark.Single(
-    Benchmark.NetworkOnly(),
+    Benchmark.NetworkOnly(0.0),
     benchmark_sim)]
 
 arena = ArenaParams(
@@ -63,7 +63,7 @@ params = Params(
   memory_analysis=nothing,
   ternary_rewards=false,
   use_symmetries=false,
-  mem_buffer_size=PLSchedule(300_000))
+  mem_buffer_size=PLSchedule(110_000))
 
 experiment = Experiment(
   "fjspt3", GameSpec(PLSchedule([1, 10], [2, 2])=>PLSchedule([1, 10], [7, 7]), 
