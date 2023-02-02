@@ -304,14 +304,15 @@ function GI.vectorize_state(::GameSpec, s::GameEnv)
   node_data[6, :] = [s.ready_time[:, 1]; s.done_time[s.last_o_m, 1]; s.done_time[s.last_o_k, 2]] ./ s.LB#ready time
   opp_left_i = [sum(s.assigned[s.job_ids[i]:s.job_ids[i+1]-1, 2] .== 0) for i in 1:s.N]
   job_per_op = vcat([fill(i, s.job_ids[i+1] - s.job_ids[i]) for i in 1:s.N]...)
-  node_data[7, :] = [opp_left_i[job_per_op]; 0.0; sum(opp_left_i); opp_left_m; fill(sum(opp_left_m), s.K)] ./ s.M #operations left
+  total_op_left = sum(opp_left_m)
+  node_data[7, :] = [opp_left_i[job_per_op]; 0.0; sum(opp_left_i); opp_left_m; fill(total_op_left, s.K)] ./ total_op_left #operations left
   process_left = copy(s.process_time)
   process_left[.!machine_available] .= 0
   possible_m = .!all_opp_done_m
   node_data[8, :] = [s.done_time[:, 2] .- s.ready_time[:, 1]; mean(process_left, dims=1)'; fill(mean(s.transport_time[s.assigned[s.last_o_k, 2], possible_m]) + mean(s.transport_time[possible_m, possible_m]), s.K)] ./ s.LB#avg duration
   machine_per_o = sum(machine_available, dims=2)
   machine_per_o[machine_per_o.==0] .= 1
-  node_data[9, :] = [machine_per_o; opp_left_m; fill(sum(opp_left_m), s.K)] ./ s.M #number of neighbours
+  node_data[9, :] = [machine_per_o; opp_left_m; fill(total_op_left, s.K)] ./ total_op_left #number of neighbours
   #edges
   src = Vector{UInt16}()
   tar = Vector{UInt16}()
