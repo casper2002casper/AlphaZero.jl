@@ -43,6 +43,7 @@ struct LearningStatus
   loss :: Loss
   Hp :: Float32 # property of the memory, constant during a learning iteration
   Hpnet :: Float32
+  Vdata :: Float32
 end
 
 """

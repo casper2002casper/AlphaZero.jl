@@ -395,7 +395,8 @@ const LEARNING_STATUS_TABLE = Log.Table([
   ("Lreg",   NUM_COL,     s -> s.loss.Lreg),
   ("Linv",   NUM_COL,     s -> s.loss.Linv),
   ("Hp",     NUM_COL,     s -> s.Hp),
-  ("Hpnet",  NUM_COL,     s -> s.Hpnet)])
+  ("Hpnet",  NUM_COL,     s -> s.Hpnet),
+  ("Vdata",  NUM_COL,     s -> s.Vdata)])
 
 const SAMPLES_STATS_TABLE = Log.Table([
   ("Loss",   NUM_COL,     s -> s.status.loss.L),

@@ -98,6 +98,7 @@ struct Trainer
   dataloader :: Flux.Data.DataLoader # (W, X, A, P, V) tuple obtained after converting `samples`
   Wmean :: Float32
   Hp :: Float32
+  Vdata :: Float32
   function Trainer(gspec, samples, params; test_mode=false)
     if params.use_position_averaging
       samples = merge_by_state(samples)
@@ -106,10 +107,11 @@ struct Trainer
     W, X, P, V = data
     Wmean = mean(W)
     Hp = entropy_wmean(P, W)
+    Vdata = wmean(V, W)
     # Create a batches stream
     batchsize = min(params.batch_size, length(W))
     dataloader = MLUtils.DataLoader(data; batchsize, partial=false, shuffle=true, collate=true)
-    return new(samples, params, dataloader, Wmean, Hp) 
+    return new(samples, params, dataloader, Wmean, Hp, Vdata) 
   end
 end
 
@@ -150,16 +152,17 @@ function mean_learning_status(reports, ws)
   Linv  = wmean([r.loss.Linv  for r in reports], ws)
   Hpnet = wmean([r.Hpnet      for r in reports], ws)
   Hp    = wmean([r.Hp         for r in reports], ws)
-  return Report.LearningStatus(Report.Loss(L, Lp, Lv, Lreg, Linv), Hp, Hpnet)
+  Vdata = wmean([r.Vdata      for r in reports], ws)
+  return Report.LearningStatus(Report.Loss(L, Lp, Lv, Lreg, Linv), Hp, Hpnet, Vdata)
 end
 
-function learning_status(l, network, samples, Hp)
+function learning_status(l, network, samples, Hp, Vdata)
   network = gpu(network)
   samples = Network.convert_input_tuple(network, samples)
   #W, X, P, V = samples
   Ls = l(network, samples, Hp)
   Ls = Network.convert_output_tuple(network, Ls)
-  return Report.LearningStatus(Report.Loss(Ls[1:5]...), Hp, Ls[end])
+  return Report.LearningStatus(Report.Loss(Ls[1:5]...), Hp, Ls[end], Vdata)
 end
 
 function learning_status(tr::Trainer, network)
@@ -175,9 +178,9 @@ function learning_status(tr::Trainer, network)
     while(!isready(pool)) 
       sleep(1)
     end
-    l = @async remotecall_fetch(pool, loss, batch, network, tr.Hp) do f, samples, nn, Hp
+    l = @async remotecall_fetch(pool, loss, batch, network, tr.Hp, tr.Vdata) do f, samples, nn, Hp, Vdata
       return Util.@printing_errors begin
-          return learning_status(f, nn, samples, Hp)
+          return learning_status(f, nn, samples, Hp, Vdata)
       end
     end
     push!(reports, l)
