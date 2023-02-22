@@ -187,7 +187,7 @@ function uct_scores(info::StateInfo, cpuct, ϵ, η, Q_parent)
     total_visits += child.N
     child.N > 0 && (total_visited_policy += child.P)
   end
-  sqrtNtot = sqrt(max(total_visits, 1))
+  sqrtNtot = sqrt(total_visits)
   Q_fpu = Q_parent - 0.44 * sqrt(total_visited_policy)
   return map(enumerate(info.stats)) do (i, a)
     Q = (a.N != 0) ? a.W / a.N : Q_fpu
