@@ -38,7 +38,10 @@ function Gat(gspec::AbstractGameSpec, hyper::GatHP)
   n_size, e_size = GI.state_dim(gspec)
   common = GNNChain(
     Dense_layers(n_size, hyper.hidden_size, hyper.hidden_size, 3, selu)...,
-    GAT_layers(hyper.hidden_size, e_size, hyper.depth_common, selu)...)
+    GAT_layers(hyper.hidden_size, e_size, hyper.depth_common, selu)...,
+    x->reshape(x, 1, hyper.hidden_size, :),
+    GroupNorm(hyper.hidden_size, hyper.hidden_size÷8),
+    x->reshape(x, hyper.hidden_size, :))
   vhead = Chain(
     Dense_layers(hyper.hidden_size*3 , hyper.hidden_size*2, hyper.hidden_size, hyper.depth_vhead, selu)...,
     Dense(hyper.hidden_size, 1, sigmoid))
