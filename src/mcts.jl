@@ -180,19 +180,12 @@ end
 ##### Main algorithm
 #####
 #0.25 32.33, 0.44 33.0 0.15 34.33 0.3 -33.17
-function uct_scores(info::StateInfo, cpuct, ϵ, η, Q_parent)
-  total_visits = 0
-  total_visited_policy = 0.
-  for child in info.stats
-    total_visits += child.N
-    child.N > 0 && (total_visited_policy += child.P)
-  end
-  sqrtNtot = sqrt(total_visits)
-  Q_fpu = Q_parent - 0.44 * sqrt(total_visited_policy)
+function uct_scores(info::StateInfo, cpuct, ϵ, η)
+  sqrtNtot = sqrt(Ntot(info))
   return map(enumerate(info.stats)) do (i, a)
-    Q = (a.N != 0) ? a.W / a.N : Q_fpu
+    Q =  a.W / max(a.N, 1) 
     P = iszero(ϵ) ? a.P : (1-ϵ) * a.P + ϵ * η[i]
-    Q + cpuct * P * sqrtNtot / (a.N + 1), Q
+    Q + cpuct * P * sqrtNtot / a.N
   end
 end
 
@@ -205,19 +198,18 @@ end
 # Run a single MCTS simulation, updating the statistics of all traversed states.
 # Return the estimated Q-value for the current player.
 # Modifies the state of the game environment.
-function run_simulation!(env::Env, game; η, depth=1, Q_parent=nothing)
+function run_simulation!(env::Env, game; η, depth=1)
   if GI.game_terminated(game)
     return 0.
   else
     state = GI.current_state(game)
     actions = GI.available_actions(game)
     info, new_node = state_info(env, state)
-    isnothing(Q_parent) && (Q_parent = info.Vest)
     if new_node || depth == env.max_depth
       return info.Vest
     else
       ϵ = depth==1 ? env.noise_ϵ : 0.
-      scores = uct_scores(info, env.cpuct, ϵ, η, Q_parent)
+      scores = uct_scores(info, env.cpuct, ϵ, η)
       action_id = argmax(scores)
       action = actions[action_id]
       wp = GI.white_playing(game)
@@ -225,7 +217,7 @@ function run_simulation!(env::Env, game; η, depth=1, Q_parent=nothing)
       wr = GI.white_reward(game)
       r = wp ? wr : -wr
       pswitch = wp != GI.white_playing(game)
-      qnext = run_simulation!(env, game, η=η, depth=depth+1, Q_parent=scores[action_id][2])
+      qnext = run_simulation!(env, game, η=η, depth=depth+1)
       qnext = pswitch ? -qnext : qnext
       q = r + env.gamma * qnext
       update_state_info!(env, state, action_id, q)
