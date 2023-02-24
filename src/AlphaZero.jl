@@ -110,7 +110,7 @@ module AlphaZero
 
   # Main training algorithm
   include("training.jl")
-  export Env, train!, initial_report
+  export Env, train!, initial_report, learning_step!
   export Handlers
   export AlphaZeroPlayer
 

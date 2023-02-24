@@ -284,6 +284,8 @@ function Session(
     autosave=true,
     nostdout=false,
     save_intermediate=false,
+    new_params=false,
+    learnrate = e.params.learning.learnrate,
     sim_num_games = e.params.self_play.sim.num_games,
     sim_num_workers = e.params.self_play.sim.num_workers,
     sim_batch_size = e.params.self_play.sim.batch_size,
@@ -297,7 +299,7 @@ function Session(
   isnothing(dir) && (dir = default_session_dir(e))
   logger = session_logger(dir, nostdout, autosave)
   same_json(x, y) = JSON3.write(x) == JSON3.write(y)
-  if valid_session_dir(dir)
+  if valid_session_dir(dir) && !new_params
     Log.section(logger, 1, "Loading environment from: $dir")
     env = load_env(dir)
     # The parameters must be unchanged
@@ -306,6 +308,7 @@ function Session(
     session = Session(env, dir, logger, autosave, save_intermediate, e.benchmark)
     session.report = load_session_report(dir, env.itc)
   else
+    e = @set e.params.learning.learnrate = learnrate
     e = @set e.params.self_play.sim.num_games = sim_num_games
     e = @set e.params.self_play.sim.num_workers = sim_num_workers
     e = @set e.params.self_play.sim.batch_size = sim_batch_size

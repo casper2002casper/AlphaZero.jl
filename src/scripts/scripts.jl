@@ -8,6 +8,11 @@ module Scripts
 
   dummy_run(s::String; args...) = dummy_run(Examples.experiments[s]; args...)
 
+  include("learning_run.jl")
+  export learning_run
+
+  learning_run(s::String; args...) = learning_run(Examples.experiments[s]; args...)
+
   include("test_game.jl")
   export test_game
 
