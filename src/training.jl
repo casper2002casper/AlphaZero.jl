@@ -189,7 +189,7 @@ function dummy_learning_report()
   eps = 1e-16
   dummy_loss = Report.Loss(0, 0, 0, 0, 0)
   dummy_status = Report.LearningStatus(dummy_loss, 0, 0)
-  return Report.Learning(eps, eps, eps, eps, dummy_status, [], [], false)
+  return Report.Learning(eps, eps, eps, eps, dummy_status, [], [], false, dummy_status)
 end
 
 function learning_step!(env::Env, handler)
@@ -256,7 +256,7 @@ function learning_step!(env::Env, handler)
   end
   report = Report.Learning(
     tconvert, tloss, ttrain, teval,
-    init_status, losses, checkpoints, nn_replaced)
+    init_status, losses, checkpoints, nn_replaced, status)
   Handlers.learning_finished(handler, report)
   return report
 end

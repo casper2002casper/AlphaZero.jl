@@ -130,6 +130,7 @@ struct Learning
   losses :: Vector{Float32}
   checkpoints :: Vector{Checkpoint}
   nn_replaced :: Bool
+  final_status :: LearningStatus
 end
 
 """

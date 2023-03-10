@@ -13,6 +13,11 @@ module Scripts
 
   learning_run(s::String; args...) = learning_run(Examples.experiments[s]; args...)
 
+  include("just_learning.jl")
+  export just_learning
+
+  just_learning(s::String; args...) = just_learning(Examples.experiments[s]; args...)
+
   include("test_game.jl")
   export test_game
 
