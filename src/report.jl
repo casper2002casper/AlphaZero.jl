@@ -131,6 +131,8 @@ struct Learning
   checkpoints :: Vector{Checkpoint}
   nn_replaced :: Bool
   final_status :: LearningStatus
+  Learning(t_c, t_l, t_t, t_e, init, losses, check, replaced, final::Nothing) = new(t_c, t_l, t_t, t_e, init, losses, check, replaced, init)
+  Learning(t_c, t_l, t_t, t_e, init, losses, check, replaced, final::LearningStatus) = new(t_c, t_l, t_t, t_e, init, losses, check, replaced, final)
 end
 
 """
