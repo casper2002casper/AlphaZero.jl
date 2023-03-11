@@ -192,7 +192,7 @@ function dummy_learning_report()
   return Report.Learning(eps, eps, eps, eps, dummy_status, [], [], false, dummy_status)
 end
 
-function learning_step!(env::Env, handler)
+function learning_step!(env::Env, handler; init_status=nothing)
   ap = env.params.arena
   lp = env.params.learning
   checkpoints = Report.Checkpoint[]
@@ -208,7 +208,7 @@ function learning_step!(env::Env, handler)
   end
   trainer, tconvert = @timed Trainer(env.gspec, experience, lp)
   @show tconvert
-  init_status = learning_status(trainer, env.curnn)
+  isnothing(init_status) && (init_status = learning_status(trainer, env.curnn))
   status = init_status
   Handlers.learning_started(handler)
   # Compute the number of batches between each checkpoint
