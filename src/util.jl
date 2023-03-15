@@ -6,6 +6,7 @@ import Random
 import Distributions
 import ThreadPools
 using Distributions: Categorical
+using Random: AbstractRNG, GLOBAL_RNG
 
 """
     @printing_errors expr
@@ -84,9 +85,9 @@ end
 Draw a sample from a categorical distribution represented as a probability vector.
 See [`fix_probvec`](@ref).
 """
-function rand_categorical(π)
+function rand_categorical(π; rng::AbstractRNG=Random.GLOBAL_RNG)
   π = fix_probvec(π)
-  return rand(Categorical(π))
+  return rand(rng, Categorical(π))
 end
 
 """

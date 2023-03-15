@@ -312,10 +312,10 @@ function play_game(gspec, player; flip_probability=0., itc=1, rng::AbstractRNG=R
     actions, π_target = think(player, game)
     τ = player_temperature(player, game, length(trace))
     π_sample = apply_temperature(π_target, τ)
-    a = actions[Util.rand_categorical(π_sample)]
+    a = actions[Util.rand_categorical(π_sample; rng)]
     GI.play!(game, a)
     push!(trace, π_target, GI.white_reward(game), GI.current_state(game))
-    if(GI.disturbe!(gspec, game, rng, itc))
+    if(rng != Random.GLOBAL_RNG && GI.disturbe!(gspec, game, rng, itc))
       reset_player!(player)
     end
   end
