@@ -190,8 +190,8 @@ function learning_status(tr::Trainer, network)
   return mean_learning_status(reports, ws)
 end
 
-function samples_report(tr::Trainer)
-  status = learning_status(tr)
+function samples_report(tr::Trainer, nn)
+  status = learning_status(tr, nn)
   # Samples in `tr.samples` can be merged by board or not
   num_samples = sum(e.n for e in tr.samples)
   num_boards = length(merge_by_state(tr.samples))
@@ -207,11 +207,11 @@ function memory_report(
   )
   # It is important to load the neural network in test mode so as to not
   # overwrite the batch norm statistics based on biased data.
-  Tr(samples) = Trainer(mem.gspec, nn, samples, optimzer, learning_params, test_mode=true)
-  all_samples = samples_report(Tr(get_experience(mem)))
+  Tr(samples) = Trainer(mem.gspec, samples, learning_params, test_mode=true)
+  all_samples = samples_report(Tr(get_experience(mem)), nn)
   latest_batch = isempty(last_batch(mem)) ?
     all_samples :
-    samples_report(Tr(last_batch(mem)))
+    samples_report(Tr(last_batch(mem)), nn)
   per_game_stage = begin
     es = get_experience(mem)
     sort!(es, by=(e->e.t))
@@ -219,7 +219,7 @@ function memory_report(
     stages = collect(Iterators.partition(es, csize))
     map(stages) do es
       ts = [e.t for e in es]
-      stats = samples_report(Tr(es))
+      stats = samples_report(Tr(es), nn)
       Report.StageSamples(minimum(ts), maximum(ts), stats)
     end
   end
